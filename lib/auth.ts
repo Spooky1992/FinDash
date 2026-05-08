@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { db } from './db'
+import { getDb } from './db'
 import { users } from './schema'
 import { eq } from 'drizzle-orm'
 
@@ -14,6 +14,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
+        const db = getDb()
 
         const [user] = await db
           .select()

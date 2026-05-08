@@ -1,19 +1,15 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import { transactions } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
-
-async function getUserId(req: Request): Promise<number | null> {
-  const session = await auth()
-  return session?.user?.id ? parseInt(session.user.id) : null
-}
 
 export async function GET() {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
+  const db = getDb()
 
   const rows = await db
     .select()
@@ -35,6 +31,7 @@ export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
+  const db = getDb()
 
   const body = await req.json()
   const [row] = await db.insert(transactions).values({
@@ -54,10 +51,10 @@ export async function DELETE(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
+  const db = getDb()
 
   const { id } = await req.json()
-  await db.delete(transactions)
-    .where(eq(transactions.id, id))
+  await db.delete(transactions).where(eq(transactions.id, id))
 
   return NextResponse.json({ ok: true })
 }

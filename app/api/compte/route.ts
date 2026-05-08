@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import { compte, compteHistorique } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
 
@@ -9,6 +9,7 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
+  const db = getDb()
 
   const [row] = await db.select().from(compte).where(eq(compte.userId, userId))
   const historique = await db
@@ -38,6 +39,7 @@ export async function PATCH(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
 
+  const db = getDb()
   const body = await req.json()
   await db.update(compte)
     .set({
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
 
-  // Ajoute une entrée d'historique
+  const db = getDb()
   const body = await req.json()
   await db.insert(compteHistorique).values({
     userId,
@@ -77,6 +79,7 @@ export async function DELETE(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const userId = parseInt(session.user.id)
 
+  const db = getDb()
   const { key } = await req.json()
   await db.delete(compteHistorique)
     .where(eq(compteHistorique.key, key))
