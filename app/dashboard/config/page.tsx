@@ -4,7 +4,71 @@ import { useAppData } from '@/hooks/useAppData'
 import { fmt, TX_CATEGORIES, COLOR_LIST, cardCss, inputCss, btnCss } from '@/lib/utils'
 import type { Budget, Portfolio } from '@/lib/types'
 
-type Tab = 'budget' | 'portfolio' | 'export'
+type Tab = 'budget' | 'portfolio' | 'export' | 'comptes'
+
+function CreateUserPanel() {
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [msg, setMsg]           = useState<{ ok: boolean; text: string } | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (password !== confirm) { setMsg({ ok: false, text: 'Les mots de passe ne correspondent pas.' }); return }
+    setLoading(true); setMsg(null)
+    const r = await fetch('/api/admin/create-user', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const d = await r.json()
+    setLoading(false)
+    if (r.ok) {
+      setMsg({ ok: true, text: `Compte créé pour ${d.email}. Il peut se connecter maintenant.` })
+      setEmail(''); setPassword(''); setConfirm('')
+    } else {
+      setMsg({ ok: false, text: d.error ?? 'Erreur inconnue' })
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={cardCss}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 6 }}>Créer un nouveau compte</div>
+        <p style={{ fontSize: 12, color: '#636385', marginBottom: 20 }}>
+          Chaque compte a ses propres données (budget, transactions, patrimoine) isolées des autres.
+        </p>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inputCss} required />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Mot de passe</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputCss} required minLength={6} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Confirmer le mot de passe</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} style={inputCss} required />
+          </div>
+          {msg && (
+            <div style={{ fontSize: 12, padding: '10px 14px', borderRadius: 8, fontWeight: 500,
+              color: msg.ok ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)',
+              background: msg.ok ? 'oklch(65% 0.18 148 / 0.1)' : 'oklch(62% 0.20 25 / 0.1)' }}>
+              {msg.text}
+            </div>
+          )}
+          <button type="submit" disabled={loading} style={{ ...btnCss(), opacity: loading ? 0.7 : 1 }}>
+            {loading ? '…' : 'Créer le compte'}
+          </button>
+        </form>
+      </div>
+      <div style={{ ...cardCss, padding: '14px 18px', fontSize: 12, color: '#636385' }}>
+        Seul un utilisateur connecté peut créer de nouveaux comptes. La personne devra aller sur <strong style={{ color: '#e8e8f2' }}>/login</strong> et se connecter avec les identifiants que tu lui donnes.
+      </div>
+    </div>
+  )
+}
 
 export default function ConfigPage() {
   const { budget, portfolio, transactions, saveBudget, savePortfolio, loading } = useAppData()
@@ -56,6 +120,7 @@ export default function ConfigPage() {
           { key: 'budget',    label: 'Budget' },
           { key: 'portfolio', label: 'Patrimoine' },
           { key: 'export',    label: 'Export / Import' },
+          { key: 'comptes',   label: 'Comptes' },
         ] as { key: Tab; label: string }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 18px', borderRadius: 9, fontSize: 13, cursor: 'pointer', fontFamily: 'Inter', fontWeight: tab === t.key ? 600 : 400,
@@ -168,6 +233,9 @@ export default function ConfigPage() {
           </div>
         </div>
       )}
+
+      {/* Comptes tab */}
+      {tab === 'comptes' && <CreateUserPanel />}
 
       {/* Export tab */}
       {tab === 'export' && (
