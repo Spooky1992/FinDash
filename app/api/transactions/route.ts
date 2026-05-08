@@ -1,0 +1,62 @@
+import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { transactions } from '@/lib/schema'
+import { eq, desc } from 'drizzle-orm'
+
+async function getUserId(req: Request): Promise<number | null> {
+  const session = await auth()
+  return session?.user?.id ? parseInt(session.user.id) : null
+}
+
+export async function GET() {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = parseInt(session.user.id)
+
+  const rows = await db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.userId, userId))
+    .orderBy(desc(transactions.date))
+
+  return NextResponse.json(rows.map(r => ({
+    id:       r.id,
+    date:     r.date,
+    label:    r.label,
+    category: r.category,
+    amount:   parseFloat(r.amount),
+    type:     r.type,
+  })))
+}
+
+export async function POST(req: Request) {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = parseInt(session.user.id)
+
+  const body = await req.json()
+  const [row] = await db.insert(transactions).values({
+    id:       body.id,
+    userId,
+    date:     body.date,
+    label:    body.label,
+    category: body.category ?? null,
+    amount:   String(body.amount),
+    type:     body.type,
+  }).returning()
+
+  return NextResponse.json({ ok: true, id: row.id })
+}
+
+export async function DELETE(req: Request) {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = parseInt(session.user.id)
+
+  const { id } = await req.json()
+  await db.delete(transactions)
+    .where(eq(transactions.id, id))
+
+  return NextResponse.json({ ok: true })
+}
