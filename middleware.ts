@@ -1,9 +1,9 @@
-import { auth } from '@/lib/auth'
+import NextAuth from 'next-auth'
+import { authConfig } from './auth.config'
 import { NextResponse } from 'next/server'
 
-// Next.js 16 : "middleware" est déprécié → utilise "proxy" mais le fichier
-// middleware.ts fonctionne encore. On garde la logique ici + protection
-// redondante dans dashboard/layout.tsx (Server Component).
+const { auth } = NextAuth(authConfig)
+
 export default auth((req) => {
   const isLoggedIn  = !!req.auth
   const isDashboard = req.nextUrl.pathname.startsWith('/dashboard')
@@ -17,7 +17,6 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Redirige / → /login ou /dashboard selon l'état
   if (req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL(isLoggedIn ? '/dashboard/flux' : '/login', req.url))
   }
