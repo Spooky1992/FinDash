@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [isSetup,  setIsSetup]  = useState<boolean | null>(null)
+  const [isSetup,  setIsSetup]  = useState(false)
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [confirm,  setConfirm]  = useState('')
@@ -15,7 +15,10 @@ export default function LoginPage() {
   const [showPwd,  setShowPwd]  = useState(false)
 
   useEffect(() => {
-    fetch('/api/setup').then(r => r.json()).then(d => setIsSetup(!d.configured))
+    fetch('/api/setup')
+      .then(r => r.json())
+      .then(d => { if (!d.configured) setIsSetup(true) })
+      .catch(() => {})
   }, [])
 
   async function handleLogin(e: React.FormEvent) {
@@ -56,14 +59,6 @@ export default function LoginPage() {
     borderRadius: 9, color: '#e8e8f2', fontSize: 15,
     fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
     outline: 'none',
-  }
-
-  if (isSetup === null) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0c0c11' }}>
-        <div style={{ color: '#636385', fontSize: 14 }}>Chargement…</div>
-      </div>
-    )
   }
 
   return (
