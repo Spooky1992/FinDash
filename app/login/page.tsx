@@ -21,12 +21,13 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
+    // redirect: true + redirectTo laisse NextAuth poser le cookie AVANT de naviguer
     const res = await signIn('credentials', { email, password, redirect: false })
     if (res?.error) {
       setError('Email ou mot de passe incorrect.')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      window.location.href = '/dashboard/flux'
     }
   }
 
@@ -46,8 +47,7 @@ export default function LoginPage() {
       return
     }
     // Auto-login après setup
-    await signIn('credentials', { email, password, redirect: false })
-    router.push('/dashboard')
+    await signIn('credentials', { email, password, redirectTo: '/dashboard/flux' })
   }
 
   const inputStyle: React.CSSProperties = {
