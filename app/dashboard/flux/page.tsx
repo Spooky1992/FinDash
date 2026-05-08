@@ -1,8 +1,9 @@
 export default function FluxPage() {
   return (
     <div style={{
+      flex: 1,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: '#0c0c11', flexDirection: 'column', gap: 16,
+      flexDirection: 'column', gap: 16,
     }}>
       <div style={{
         width: 48, height: 48, borderRadius: 12, background: 'oklch(63% 0.19 250)',
