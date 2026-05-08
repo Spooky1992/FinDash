@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 // Route de setup initial — crée le premier (et unique) utilisateur.
 // Bloquée si un utilisateur existe déjà.
 import { NextResponse } from 'next/server'
