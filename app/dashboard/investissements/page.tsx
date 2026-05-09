@@ -178,7 +178,7 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 
 // ── Position row ──────────────────────────────────────────────────────────────
 function PositionRow({ p, liveRaw, eurUsd, color, selected, onSelect }: {
-  p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD' }
+  p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD'; purchaseEurUsd?: number }
   liveRaw: number; eurUsd: number; color: string; selected: boolean; onSelect: () => void
 }) {
   // Prix live : Yahoo retourne USD pour tickers US, EUR pour .PA/.AS/-EUR
