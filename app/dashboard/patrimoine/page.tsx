@@ -187,7 +187,7 @@ export default function PatrimoinePage() {
       )}
 
       {/* KPI cards (cliquables pour changer l'onglet) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+      <div className="grid-4">
         {TABS.map(t => (
           <div key={t.key} onClick={() => setTab(t.key)} style={{ ...cardCss, padding: '14px 16px', cursor: 'pointer',
             border: `1px solid ${tab === t.key ? `${CAT_COLORS[t.key]}80` : '#252535'}`, transition: 'border-color 0.15s' }}>
@@ -213,142 +213,241 @@ export default function PatrimoinePage() {
         ))}
       </div>
 
-      {/* Table */}
+      {/* Table + cards */}
       <div style={cardCss}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>{TABS.find(t => t.key === tab)?.label}</span>
           <button onClick={openAdd} style={btnCss()}>+ Ajouter</button>
         </div>
 
+        {/* ── Desktop tables ── */}
         {(tab === 'pea' || tab === 'crypto') && (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>
-              {['Ticker', 'Nom', 'Qté', 'PRU', 'Prix live', 'Valeur', 'P&L', ''].map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 4 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).map(pos => {
-                const live   = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
-                const value  = pos.quantity * live
-                const cost   = pos.quantity * pos.costPerUnit
-                const pnl    = value - cost
-                const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
-                const col    = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
-                return (
-                  <tr key={pos.id} style={{ borderBottom: '1px solid #1c1c27' }}>
-                    <td style={{ padding: '10px 10px' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${col}22`, borderRadius: 6, padding: '3px 8px' }}>
-                        <div style={{ width: 22, height: 22, borderRadius: 6, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
-                          {pos.ticker.replace('-EUR','').replace('.AS','').replace('.PA','').slice(0,2)}
-                        </div>
-                        <span style={{ fontWeight: 700, color: col, fontSize: 12 }}>{pos.ticker}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{pos.name ?? '—'}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{pos.quantity}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{fmt(pos.costPerUnit)}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, color: prices[pos.ticker] ? '#e8e8f2' : '#636385', textAlign: 'right' }}>{fmt(live)}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, textAlign: 'right', color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>
-                      {pnl >= 0 ? '+' : ''}{fmt(pnl)} ({fmtPct(pnlPct)})
-                    </td>
-                    <td style={{ padding: '10px 10px', textAlign: 'right' }}>
-                      <button onClick={() => openEdit(pos, tab)} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', marginRight: 4 }}>✏</button>
-                      <button onClick={() => deleteItem(pos.id, tab)} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>🗑</button>
-                    </td>
-                  </tr>
-                )
-              })}
-              {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).length === 0 && (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#636385', fontSize: 13 }}>Aucune position</td></tr>
-              )}
-            </tbody>
-          </table>
+          <div className="pos-table">
+            <div className="table-scroll">
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                <thead><tr>
+                  {['Ticker', 'Nom', 'Qté', 'PRU', 'Prix live', 'Valeur', 'P&L', ''].map((h, i) => (
+                    <th key={i} style={{ padding: '6px 10px', textAlign: i >= 4 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).map(pos => {
+                    const live = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
+                    const value = pos.quantity * live
+                    const cost = pos.quantity * pos.costPerUnit
+                    const pnl = value - cost
+                    const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
+                    const col = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
+                    return (
+                      <tr key={pos.id} style={{ borderBottom: '1px solid #1c1c27' }}>
+                        <td style={{ padding: '10px 10px' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${col}22`, borderRadius: 6, padding: '3px 8px' }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 6, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
+                              {pos.ticker.replace('-EUR','').replace('.AS','').replace('.PA','').slice(0,2)}
+                            </div>
+                            <span style={{ fontWeight: 700, color: col, fontSize: 12 }}>{pos.ticker}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{pos.name ?? '—'}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{pos.quantity}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{fmt(pos.costPerUnit)}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 12, color: prices[pos.ticker] ? '#e8e8f2' : '#636385', textAlign: 'right' }}>{fmt(live)}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 12, textAlign: 'right', color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>
+                          {pnl >= 0 ? '+' : ''}{fmt(pnl)} ({fmtPct(pnlPct)})
+                        </td>
+                        <td style={{ padding: '10px 10px', textAlign: 'right' }}>
+                          <button onClick={() => openEdit(pos, tab)} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', marginRight: 4 }}>✏</button>
+                          <button onClick={() => deleteItem(pos.id, tab)} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>🗑</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).length === 0 && (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#636385', fontSize: 13 }}>Aucune position</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {tab === 'livrets' && (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>
-              {['Compte', 'Taux', 'Solde', ''].map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {portfolio.livrets.accounts.map(liv => (
-                <tr key={liv.id} style={{ borderBottom: '1px solid #1c1c27' }}>
-                  <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{liv.name}</td>
-                  <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{liv.rate}%</td>
-                  <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(liv.solde)}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'right' }}>
-                    <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', marginRight: 4 }}>✏</button>
-                    <button onClick={() => deleteItem(liv.id, 'livrets')} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>🗑</button>
-                  </td>
-                </tr>
-              ))}
-              {portfolio.livrets.accounts.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret</td></tr>}
-            </tbody>
-          </table>
+          <div className="pos-table">
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Compte', 'Taux', 'Solde', ''].map((h, i) => (
+                  <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {portfolio.livrets.accounts.map(liv => (
+                  <tr key={liv.id} style={{ borderBottom: '1px solid #1c1c27' }}>
+                    <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{liv.name}</td>
+                    <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{liv.rate}%</td>
+                    <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(liv.solde)}</td>
+                    <td style={{ padding: '10px 10px', textAlign: 'right' }}>
+                      <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', marginRight: 4 }}>✏</button>
+                      <button onClick={() => deleteItem(liv.id, 'livrets')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+                {portfolio.livrets.accounts.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret</td></tr>}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {tab === 'immo' && (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>
-              {['Bien', 'Valeur estimée', ''].map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 1 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {portfolio.immo.properties.map(immo => (
-                <tr key={immo.id} style={{ borderBottom: '1px solid #1c1c27' }}>
-                  <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{immo.name}</td>
-                  <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(immo.value)}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'right' }}>
-                    <button onClick={() => openEdit(immo, 'immo')} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', marginRight: 4 }}>✏</button>
-                    <button onClick={() => deleteItem(immo.id, 'immo')} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>🗑</button>
-                  </td>
-                </tr>
-              ))}
-              {portfolio.immo.properties.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun bien immobilier</td></tr>}
-            </tbody>
-          </table>
+          <div className="pos-table">
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Bien', 'Valeur estimée', ''].map((h, i) => (
+                  <th key={i} style={{ padding: '6px 10px', textAlign: i >= 1 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {portfolio.immo.properties.map(immo => (
+                  <tr key={immo.id} style={{ borderBottom: '1px solid #1c1c27' }}>
+                    <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{immo.name}</td>
+                    <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(immo.value)}</td>
+                    <td style={{ padding: '10px 10px', textAlign: 'right' }}>
+                      <button onClick={() => openEdit(immo, 'immo')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', marginRight: 4 }}>✏</button>
+                      <button onClick={() => deleteItem(immo.id, 'immo')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+                {portfolio.immo.properties.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun bien immobilier</td></tr>}
+              </tbody>
+            </table>
+          </div>
         )}
+
+        {/* ── Mobile cards ── */}
+        <div className="pos-cards">
+          {(tab === 'pea' || tab === 'crypto') && (() => {
+            const positions = tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions
+            const col = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
+            if (positions.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucune position</div>
+            return positions.map(pos => {
+              const live = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
+              const value = pos.quantity * live
+              const cost = pos.quantity * pos.costPerUnit
+              const pnl = value - cost
+              const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
+              return (
+                <div key={pos.id} style={{ background: '#1c1c27', borderRadius: 12, padding: '14px 16px', border: '1px solid #252535' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
+                        {pos.ticker.replace('-EUR','').replace('.AS','').replace('.PA','').slice(0,2)}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: col, fontSize: 14 }}>{pos.ticker}</div>
+                        {pos.name && <div style={{ fontSize: 11, color: '#636385' }}>{pos.name}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => openEdit(pos, tab)} style={{ background: 'transparent', border: '1px solid #252535', borderRadius: 8, color: '#636385', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>✏ Éditer</button>
+                      <button onClick={() => deleteItem(pos.id, tab)} style={{ background: 'transparent', border: '1px solid oklch(62% 0.20 25 / 0.4)', borderRadius: 8, color: 'oklch(62% 0.20 25)', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>🗑</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    {[
+                      { label: 'Quantité', val: String(pos.quantity) },
+                      { label: 'PRU', val: fmt(pos.costPerUnit) },
+                      { label: 'Prix live', val: fmt(live) },
+                      { label: 'Valeur', val: fmt(value) },
+                      { label: 'P&L', val: `${pnl >= 0 ? '+' : ''}${fmt(pnl)}`, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                      { label: 'Perf.', val: `${fmtPct(pnlPct)}`, color: pnlPct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                    ].map(r => (
+                      <div key={r.label} style={{ background: '#13131b', borderRadius: 8, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 10, color: '#636385', marginBottom: 2 }}>{r.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: r.color ?? '#e8e8f2' }}>{r.val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })
+          })()}
+
+          {tab === 'livrets' && (() => {
+            if (portfolio.livrets.accounts.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucun livret</div>
+            return portfolio.livrets.accounts.map(liv => (
+              <div key={liv.id} style={{ background: '#1c1c27', borderRadius: 12, padding: '14px 16px', border: '1px solid #252535' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>{liv.name}</div>
+                    <div style={{ fontSize: 12, color: '#636385', marginTop: 2 }}>Taux : {liv.rate}%</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(65% 0.16 185)' }}>{fmt(liv.solde)}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'transparent', border: '1px solid #252535', borderRadius: 8, color: '#636385', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>✏ Éditer</button>
+                      <button onClick={() => deleteItem(liv.id, 'livrets')} style={{ background: 'transparent', border: '1px solid oklch(62% 0.20 25 / 0.4)', borderRadius: 8, color: 'oklch(62% 0.20 25)', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>🗑</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          })()}
+
+          {tab === 'immo' && (() => {
+            if (portfolio.immo.properties.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucun bien</div>
+            return portfolio.immo.properties.map(immo => (
+              <div key={immo.id} style={{ background: '#1c1c27', borderRadius: 12, padding: '14px 16px', border: '1px solid #252535' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>{immo.name}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(65% 0.18 148)' }}>{fmt(immo.value)}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={() => openEdit(immo, 'immo')} style={{ background: 'transparent', border: '1px solid #252535', borderRadius: 8, color: '#636385', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>✏ Éditer</button>
+                      <button onClick={() => deleteItem(immo.id, 'immo')} style={{ background: 'transparent', border: '1px solid oklch(62% 0.20 25 / 0.4)', borderRadius: 8, color: 'oklch(62% 0.20 25)', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>🗑</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          })()}
+        </div>
       </div>
 
       {/* Modal */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ ...cardCss, width: 400, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2', marginBottom: 4 }}>
+        <div className="modal-sheet-wrap">
+          <div className="modal-sheet" style={{ ...cardCss, width: 420, borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '90dvh', overflowY: 'auto', paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+            <div style={{ width: 36, height: 4, background: '#252535', borderRadius: 2, margin: '0 auto 4px' }} />
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>
               {(editItem as Position).ticker || (editItem as Livret).name || (editItem as Immo).name ? 'Modifier' : 'Ajouter'} — {TABS.find(t => t.key === editItem._type)?.label}
             </div>
             {(editItem._type === 'pea' || editItem._type === 'crypto') && (<>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Ticker</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Ticker</label>
                 <input value={editItem.ticker ?? ''} onChange={e => setEditItem(x => ({ ...x, ticker: e.target.value.toUpperCase() }))} style={inputCss} placeholder="Ex: IWDA.AS, BTC" /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom (optionnel)</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom (optionnel)</label>
                 <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Quantité</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Quantité</label>
                 <input type="number" step="any" value={(editItem as Position).quantity ?? ''} onChange={e => setEditItem(x => ({ ...x, quantity: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Prix d&apos;achat moyen (€)</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Prix d&apos;achat moyen (€)</label>
                 <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} /></div>
             </>)}
             {editItem._type === 'livrets' && (<>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du compte</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du compte</label>
                 <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Livret A, LDD…" /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux (%)</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Taux (%)</label>
                 <input type="number" step="0.01" value={(editItem as Livret).rate ?? ''} onChange={e => setEditItem(x => ({ ...x, rate: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Solde (€)</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Solde (€)</label>
                 <input type="number" step="0.01" value={(editItem as Livret).solde ?? ''} onChange={e => setEditItem(x => ({ ...x, solde: parseFloat(e.target.value) }))} style={inputCss} /></div>
             </>)}
             {editItem._type === 'immo' && (<>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du bien</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du bien</label>
                 <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Appartement, maison…" /></div>
-              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Valeur estimée (€)</label>
+              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Valeur estimée (€)</label>
                 <input type="number" step="1000" value={(editItem as Immo).value ?? ''} onChange={e => setEditItem(x => ({ ...x, value: parseFloat(e.target.value) }))} style={inputCss} /></div>
             </>)}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-              <button onClick={() => { setShowForm(false); setEditItem({}) }} style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385' }}>Annuler</button>
-              <button onClick={saveItem} style={btnCss()}>Enregistrer</button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button onClick={() => { setShowForm(false); setEditItem({}) }} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'transparent', border: '1px solid #252535', color: '#636385', cursor: 'pointer', fontFamily: 'Inter', fontSize: 14, fontWeight: 600 }}>Annuler</button>
+              <button onClick={saveItem} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'Inter', fontSize: 14, fontWeight: 700 }}>Enregistrer</button>
             </div>
           </div>
         </div>
