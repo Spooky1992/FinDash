@@ -86,7 +86,7 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
   return (
     <div style={{ ...cardCss, marginTop: 4 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justify: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <TickerBadge ticker={ticker} color={color} />
