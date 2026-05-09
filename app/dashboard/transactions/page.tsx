@@ -44,7 +44,7 @@ export default function TransactionsPage() {
   const selectedType = TX_TYPES.find(t => t.value === form.type)
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 960 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
       <div>
@@ -53,7 +53,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div className="grid-3" style={{ gap: 12 }}>
         {[
           { label: 'Entrées',  val: totalIn,           color: 'oklch(65% 0.18 148)', icon: '↑', bg: 'oklch(65% 0.18 148 / 0.1)' },
           { label: 'Sorties',  val: totalOut,           color: 'oklch(62% 0.20 25)',  icon: '↓', bg: 'oklch(62% 0.20 25 / 0.1)'  },
@@ -76,7 +76,7 @@ export default function TransactionsPage() {
         <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 18 }}>Nouvelle transaction</div>
         <form onSubmit={submit}>
           {/* Ligne 1 : champs principaux */}
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 160px 140px', gap: 12, marginBottom: 14 }}>
+          <div className="grid-form-tx" style={{ marginBottom: 14 }}>
             <div>
               <label style={labelStyle}>Date</label>
               <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={inputCss} required />
@@ -166,7 +166,8 @@ export default function TransactionsPage() {
         {loading ? (
           <div style={{ color: '#636385', fontSize: 13, textAlign: 'center', padding: 32 }}>Chargement…</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
               <tr>
                 {[
@@ -254,6 +255,7 @@ export default function TransactionsPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

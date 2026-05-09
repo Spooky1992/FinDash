@@ -125,9 +125,9 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
       </div>
 
       {/* Chart */}
-      {loading && <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#636385', fontSize: 12 }}>Chargement…</div>}
+      {loading && <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#636385', fontSize: 12 }}>Chargement…</div>}
       {!loading && prices.length >= 2 && (
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block', cursor: 'crosshair' }}
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', cursor: 'crosshair' }}
           onMouseLeave={() => setHovIdx(null)}
           onMouseMove={e => {
             const rect = svgRef.current?.getBoundingClientRect()
@@ -186,35 +186,28 @@ function PositionRow({ p, live, color, selected, onSelect }: {
   const pnl   = value - cost
   const pct   = cost > 0 ? (pnl / cost) * 100 : 0
   return (
-    <>
-      <tr
-        onClick={onSelect}
-        style={{ borderBottom: selected ? 'none' : '1px solid #1c1c27', cursor: 'pointer', background: selected ? '#1c1c27' : 'transparent', transition: 'background 0.15s' }}
-      >
-        <td style={{ padding: '12px 10px' }}>
-          <div>
-            <TickerBadge ticker={p.ticker} color={color} />
-            {p.name && <div style={{ fontSize: 10, color: '#636385', marginTop: 3, marginLeft: 2 }}>{p.name}</div>}
-          </div>
-        </td>
-        <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2' }}>{p.quantity}</td>
-        <td style={{ padding: '12px 10px', fontSize: 12, color: '#636385', textAlign: 'right' }}>{fmt(p.costPerUnit)}</td>
-        <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(live)}</td>
-        <td style={{ padding: '12px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
-        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{pnl >= 0 ? '+' : ''}{fmt(pnl)}</div>
-          <div style={{ fontSize: 11, color: pct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{fmtPct(pct)}</div>
-        </td>
-        <td style={{ padding: '12px 10px', textAlign: 'right', fontSize: 14, color: '#636385' }}>{selected ? '▲' : '▼'}</td>
-      </tr>
-      {selected && (
-        <tr>
-          <td colSpan={7} style={{ padding: '0 10px 16px', background: '#1c1c27' }}>
-            <MiniChart ticker={p.ticker} color={color} costPerUnit={p.costPerUnit} />
-          </td>
-        </tr>
-      )}
-    </>
+    <tr
+      onClick={onSelect}
+      style={{ borderBottom: '1px solid #1c1c27', cursor: 'pointer', transition: 'background 0.15s' }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#1c1c27' }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
+    >
+      <td style={{ padding: '12px 10px' }}>
+        <div>
+          <TickerBadge ticker={p.ticker} color={color} />
+          {p.name && <div style={{ fontSize: 10, color: '#636385', marginTop: 3, marginLeft: 2 }}>{p.name}</div>}
+        </div>
+      </td>
+      <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2' }}>{p.quantity}</td>
+      <td style={{ padding: '12px 10px', fontSize: 12, color: '#636385', textAlign: 'right' }}>{fmt(p.costPerUnit)}</td>
+      <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(live)}</td>
+      <td style={{ padding: '12px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
+      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{pnl >= 0 ? '+' : ''}{fmt(pnl)}</div>
+        <div style={{ fontSize: 11, color: pct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{fmtPct(pct)}</div>
+      </td>
+      <td style={{ padding: '12px 10px', textAlign: 'right', fontSize: 14, color: '#636385' }}>{selected ? '▲' : '▼'}</td>
+    </tr>
   )
 }
 
@@ -266,7 +259,7 @@ export default function InvestissementsPage() {
   const headers = ['Ticker', 'Qté', 'PRU', 'Prix live', 'Valeur (€)', 'P&L (€)', '']
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f2', margin: 0 }}>Investissements</h1>
@@ -302,7 +295,7 @@ export default function InvestissementsPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div className="grid-3" style={{ gap: 12 }}>
         {[
           { label: 'Valeur totale (€)', val: fmt(totalValue), color: '#e8e8f2', sub: null },
           { label: 'Total investi (€)',  val: fmt(totalCost),  color: '#636385', sub: null },
@@ -329,7 +322,8 @@ export default function InvestissementsPage() {
               {peaValue - peaCost >= 0 ? '+' : ''}{fmt(peaValue - peaCost)} ({peaCost > 0 ? fmtPct((peaValue - peaCost) / peaCost * 100) : '—'})
             </span>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
             <thead><tr>
               {headers.map((h, i) => (
                 <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
@@ -347,6 +341,15 @@ export default function InvestissementsPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          {(() => {
+            const sel = peaPositions.find(p => p.id === selected)
+            return sel ? (
+              <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
+                <MiniChart ticker={sel.ticker} color={CAT_COLOR_PEA} costPerUnit={sel.costPerUnit} />
+              </div>
+            ) : null
+          })()}
         </div>
       )}
 
@@ -363,7 +366,8 @@ export default function InvestissementsPage() {
               {cryptoValue - cryptoCost >= 0 ? '+' : ''}{fmt(cryptoValue - cryptoCost)} ({cryptoCost > 0 ? fmtPct((cryptoValue - cryptoCost) / cryptoCost * 100) : '—'})
             </span>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
             <thead><tr>
               {headers.map((h, i) => (
                 <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
@@ -381,6 +385,15 @@ export default function InvestissementsPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          {(() => {
+            const sel = cryptoPositions.find(p => p.id === selected)
+            return sel ? (
+              <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
+                <MiniChart ticker={sel.ticker} color={CAT_COLOR_CRYPTO} costPerUnit={sel.costPerUnit} />
+              </div>
+            ) : null
+          })()}
         </div>
       )}
 

@@ -66,7 +66,7 @@ function ProjectionChart({ solde, surplus, budget, monthPlans }: {
           )}
         </div>
       )}
-      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block', cursor: 'crosshair' }}
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', cursor: 'crosshair' }}
         onMouseLeave={() => setHovIdx(null)}
         onMouseMove={e => {
           const rect = svgRef.current?.getBoundingClientRect()
@@ -305,7 +305,7 @@ export default function ComptePage() {
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
       <div>
@@ -314,7 +314,7 @@ export default function ComptePage() {
       </div>
 
       {/* Solde + projection (full width) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+      <div className="grid-2-narrow">
         {/* Solde card */}
         <div style={{ ...cardCss, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
@@ -380,7 +380,8 @@ export default function ComptePage() {
       {compte.historique.length > 0 && (
         <div style={cardCss}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Historique mensuel</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
             <thead><tr>
               {['Mois', 'Avant', 'Revenus', 'Dépenses', 'Épargne', 'Après', 'Δ', ''].map((h, i) => (
                 <th key={i} style={{ padding: '6px 10px', textAlign: i >= 5 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
@@ -405,6 +406,7 @@ export default function ComptePage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -424,7 +426,8 @@ export default function ComptePage() {
             ))}
           </div>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="table-scroll">
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
           <thead><tr>
             {['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'].map((h, i) => (
               <th key={i} style={{ padding: '6px 10px', textAlign: i >= 4 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
@@ -454,6 +457,7 @@ export default function ComptePage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

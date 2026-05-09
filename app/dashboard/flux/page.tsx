@@ -327,7 +327,7 @@ export default function FluxPage() {
   ]
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
       <div>
@@ -336,7 +336,7 @@ export default function FluxPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+      <div className="grid-5" style={{ gap: 10 }}>
         {kpis.map(k => (
           <div key={k.label} style={{ ...cardCss, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: `${k.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: k.color, flexShrink: 0 }}>
@@ -352,7 +352,7 @@ export default function FluxPage() {
 
       {/* Sankey + Budget panel */}
       {totalIncome > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
+        <div className="grid-sankey">
           <div style={cardCss}>
             <SankeyDiagram budget={resolved} />
           </div>

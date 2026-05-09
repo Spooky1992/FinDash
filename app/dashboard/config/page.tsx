@@ -109,7 +109,7 @@ export default function ConfigPage() {
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
   return (
-    <div style={{ padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 800 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f2' }}>Configuration</h1>
         {saved && <span style={{ fontSize: 12, color: 'oklch(65% 0.18 148)', fontWeight: 600 }}>✓ Enregistré</span>}

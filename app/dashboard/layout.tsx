@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
+import { BottomNav } from '@/components/Sidebar'
 import { AppDataProvider } from '@/hooks/useAppData'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -9,11 +10,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <AppDataProvider>
-      <div style={{ display: 'flex', height: '100vh', background: '#0c0c11', overflow: 'hidden' }}>
+      <div className="dashboard-root">
         <Sidebar />
-        <main style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <main className="dashboard-main">
           {children}
         </main>
+        <BottomNav />
       </div>
     </AppDataProvider>
   )

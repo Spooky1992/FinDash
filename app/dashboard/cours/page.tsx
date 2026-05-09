@@ -91,7 +91,7 @@ function CoursChart({ data }: { data: ChartData }) {
 
       {/* SVG chart with hover */}
       <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 200 }}
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}
           onMouseLeave={() => setHoveredIdx(null)}
           onMouseMove={e => {
             const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
@@ -169,7 +169,7 @@ export default function CoursPage() {
   }
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
       <div>

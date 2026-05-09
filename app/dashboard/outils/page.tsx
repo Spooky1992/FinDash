@@ -179,7 +179,7 @@ export default function OutilsPage() {
   ]
 
   return (
-    <div style={{ padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 700 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f2' }}>Outils</h1>
 
       <div style={{ display: 'flex', gap: 8 }}>

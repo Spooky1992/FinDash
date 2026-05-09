@@ -13,6 +13,8 @@
   --purple:     oklch(63% 0.19 290);
   --orange:     oklch(68% 0.17 55);
   --teal:       oklch(65% 0.16 185);
+  --sidebar-w:  220px;
+  --bottom-nav-h: 64px;
 }
 
 html, body {
@@ -36,3 +38,164 @@ input:focus { outline: none; border-color: var(--blue) !important; }
 
 button { transition: color 0.15s, background 0.15s, border-color 0.15s, opacity 0.15s; }
 text { user-select: none; }
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+.dashboard-root {
+  display: flex;
+  height: 100vh;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
+  background: #0e0e16;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.dashboard-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── Bottom nav (hidden on desktop) ────────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+}
+
+/* ── Form grids ────────────────────────────────────────────────────────────── */
+.grid-form-tx { display: grid; grid-template-columns: 140px 1fr 160px 140px; gap: 12px; }
+
+/* ── Responsive grids utilisés dans les pages ──────────────────────────────── */
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.grid-2-narrow { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+.grid-sankey { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+
+/* ── Tables scrollables ────────────────────────────────────────────────────── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Page padding ──────────────────────────────────────────────────────────── */
+.page-pad { padding: 28px 32px; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOBILE  ≤ 768px
+══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Layout */
+  .dashboard-root {
+    flex-direction: column;
+    height: 100dvh; /* dynamic viewport height — handles mobile browser chrome */
+    overflow: hidden;
+  }
+
+  .sidebar {
+    display: none; /* remplacée par bottom nav */
+  }
+
+  .dashboard-main {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: var(--bottom-nav-h);
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-h);
+    background: #0e0e16;
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    align-items: stretch;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none;
+    color: var(--text-muted);
+    transition: color 0.15s;
+    padding: 8px 4px;
+    position: relative;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--blue);
+  }
+
+  .bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--blue);
+    border-radius: 0 0 2px 2px;
+  }
+
+  .bottom-nav-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .bottom-nav-label {
+    font-size: 9px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56px;
+    text-align: center;
+  }
+
+  /* Page padding */
+  .page-pad { padding: 16px; }
+
+  /* Grids → colonne unique ou 2 colonnes */
+  .grid-5 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+  .grid-2-narrow { grid-template-columns: 1fr; gap: 12px; }
+  .grid-sankey { grid-template-columns: 1fr; gap: 12px; }
+  .grid-form-tx { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Tables : scroll horizontal */
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 500px; }
+
+  /* Cartes : padding réduit */
+  .card-mobile { padding: 14px 16px !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PETIT MOBILE  ≤ 480px
+══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .grid-5 { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid-3 { grid-template-columns: 1fr; gap: 8px; }
+}

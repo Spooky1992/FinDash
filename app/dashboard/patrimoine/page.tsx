@@ -158,7 +158,7 @@ export default function PatrimoinePage() {
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -174,7 +174,7 @@ export default function PatrimoinePage() {
 
       {/* Treemap + bar chart */}
       {grandTotal > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'start' }}>
+        <div className="grid-2" style={{ alignItems: 'start' }}>
           <div style={cardCss}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Allocation</div>
             <Treemap items={treemapItems} height={280} />

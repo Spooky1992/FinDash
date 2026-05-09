@@ -169,11 +169,11 @@ export default function SynthesePage() {
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
   return (
-    <div style={{ padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f2' }}>Synthèse</h1>
 
       {/* KPIs principaux */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+      <div className="grid-5">
         {[
           { label: 'Patrimoine',   val: patrimoineTotal, color: 'oklch(65% 0.18 148)', fmt: true },
           { label: 'Solde compte', val: compte.solde,    color: compte.solde >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fmt: true },
@@ -190,7 +190,7 @@ export default function SynthesePage() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="grid-2">
         {/* Allocation */}
         <div style={cardCss}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Allocation patrimoine</div>
@@ -214,7 +214,7 @@ export default function SynthesePage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="grid-2">
         {/* Dépenses par catégorie */}
         <div style={cardCss}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Dépenses — {monthLabel(curKey)}</div>
@@ -247,7 +247,7 @@ export default function SynthesePage() {
       {/* Budget résumé */}
       <div style={cardCss}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Budget mensuel — {monthLabel(curKey)}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div className="grid-3" style={{ gap: 16 }}>
           <div>
             <div style={{ fontSize: 11, color: '#636385', marginBottom: 8, fontWeight: 600 }}>REVENUS</div>
             {resolved.incomes.map((inc, i) => (

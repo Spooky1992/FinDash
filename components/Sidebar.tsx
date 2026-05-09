@@ -4,28 +4,45 @@ import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const NAV = [
-  { href: '/dashboard/flux',           label: 'Flux',           icon: '⇌' },
-  { href: '/dashboard/synthese',       label: 'Synthèse',       icon: '◎' },
-  { href: '/dashboard/compte',         label: 'Mon Compte',     icon: '◈' },
-  { href: '/dashboard/transactions',   label: 'Transactions',   icon: '⊞' },
-  { href: '/dashboard/patrimoine',     label: 'Patrimoine',     icon: '◆' },
-  { href: '/dashboard/investissements',label: 'Investissements',icon: '▲' },
-  { href: '/dashboard/outils',         label: 'Outils',         icon: '⚙' },
-  { href: '/dashboard/cours',          label: 'Cours',          icon: '📈' },
-  { href: '/dashboard/config',         label: 'Config',         icon: '⊟' },
+  { href: '/dashboard/flux',            label: 'Flux',           icon: '⇌' },
+  { href: '/dashboard/synthese',        label: 'Synthèse',       icon: '◎' },
+  { href: '/dashboard/compte',          label: 'Mon Compte',     icon: '◈' },
+  { href: '/dashboard/transactions',    label: 'Transactions',   icon: '⊞' },
+  { href: '/dashboard/patrimoine',      label: 'Patrimoine',     icon: '◆' },
+  { href: '/dashboard/investissements', label: 'Investissements',icon: '▲' },
+  { href: '/dashboard/outils',          label: 'Outils',         icon: '⚙' },
+  { href: '/dashboard/cours',           label: 'Cours',          icon: '📈' },
+  { href: '/dashboard/config',          label: 'Config',         icon: '⊟' },
 ]
 
+// ── Bottom nav (mobile) — 5 items max + "plus" ────────────────────────────────
+const NAV_PRIMARY = NAV.slice(0, 5)
+
+export function BottomNav() {
+  const pathname = usePathname()
+
+  return (
+    <nav className="bottom-nav">
+      {NAV_PRIMARY.map(item => {
+        const active = pathname === item.href
+        return (
+          <Link key={item.href} href={item.href} className={`bottom-nav-item${active ? ' active' : ''}`}>
+            <span className="bottom-nav-icon">{item.icon}</span>
+            <span className="bottom-nav-label">{item.label}</span>
+          </Link>
+        )
+      })}
+    </nav>
+  )
+}
+
+// ── Sidebar (desktop) ─────────────────────────────────────────────────────────
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
 
   return (
-    <div style={{
-      width: 220, minWidth: 220, height: '100vh',
-      background: '#0e0e16', borderRight: '1px solid #252535',
-      display: 'flex', flexDirection: 'column',
-      position: 'sticky', top: 0, overflow: 'hidden',
-    }}>
+    <div className="sidebar">
       {/* Logo */}
       <div style={{ padding: '22px 20px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
