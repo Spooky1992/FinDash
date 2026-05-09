@@ -88,11 +88,7 @@ export default function PatrimoinePage() {
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<Partial<Position & Livret & Immo> & { _type?: Tab; currency?: 'EUR' | 'USD' }>({})
-
-  // Convertit un montant en EUR (les prix live sont toujours en USD pour actions US/crypto)
-  function toEur(amount: number, currency: 'EUR' | 'USD' = 'EUR') {
-    return currency === 'USD' ? amount / eurUsd : amount
-  }
+  const [fetchingRate, setFetchingRate] = useState(false)
 
   useEffect(() => {
     if (loading) return
@@ -118,11 +114,31 @@ export default function PatrimoinePage() {
   function openAdd() { setEditItem({ _type: tab }); setShowForm(true) }
   function openEdit(item: Position | Livret | Immo, t: Tab) { setEditItem({ ...item, _type: t }); setShowForm(true) }
 
+  async function fetchHistoricalRate(date: string) {
+    if (!date) return
+    setFetchingRate(true)
+    try {
+      const r = await fetch(`/api/prices/fxrate?date=${date}`)
+      const d = await r.json()
+      if (d.eurUsd) setEditItem(x => ({ ...x, purchaseEurUsd: d.eurUsd }))
+    } catch {}
+    setFetchingRate(false)
+  }
+
   async function saveItem() {
     const p: Portfolio = JSON.parse(JSON.stringify(portfolio))
     const t = editItem._type ?? tab
     if (t === 'pea' || t === 'crypto') {
-      const pos: Position = { id: (editItem as Position).id || uid(), ticker: editItem.ticker || '', quantity: Number(editItem.quantity) || 0, costPerUnit: Number(editItem.costPerUnit) || 0, name: editItem.name, currency: editItem.currency ?? 'EUR' }
+      const pos: Position = {
+        id: (editItem as Position).id || uid(),
+        ticker: editItem.ticker || '',
+        quantity: Number(editItem.quantity) || 0,
+        costPerUnit: Number(editItem.costPerUnit) || 0,
+        name: editItem.name,
+        currency: editItem.currency ?? 'EUR',
+        purchaseDate: (editItem as Position).purchaseDate,
+        purchaseEurUsd: (editItem as Position).purchaseEurUsd,
+      }
       const arr = t === 'pea' ? p.pea.positions : p.crypto.positions
       const idx = arr.findIndex(x => x.id === pos.id)
       if (idx >= 0) arr[idx] = pos; else arr.push(pos)
@@ -160,7 +176,9 @@ export default function PatrimoinePage() {
     return raw / eurUsd
   }
   function costEur(p: Position) {
-    return p.currency === 'USD' ? p.costPerUnit / eurUsd : p.costPerUnit
+    if (p.currency !== 'USD') return p.costPerUnit
+    const rate = p.purchaseEurUsd ?? eurUsd
+    return p.costPerUnit / rate
   }
 
   const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
@@ -171,8 +189,8 @@ export default function PatrimoinePage() {
 
   const TABS: { key: Tab; label: string; total: number }[] = [
     { key: 'pea',     label: 'Actions & Fonds', total: peaTotal },
-    { key: 'crypto',  label: 'Crypto',          total: cryptoTotal },
     { key: 'livrets', label: 'Livrets',          total: livretsTotal },
+    { key: 'crypto',  label: 'Crypto',          total: cryptoTotal },
     { key: 'immo',    label: 'Immobilier',       total: immoTotal },
   ]
 
@@ -484,12 +502,44 @@ export default function PatrimoinePage() {
                   </div>
                 </div>
                 <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} />
-                {editItem.currency === 'USD' && (editItem as Position).costPerUnit > 0 && (
-                  <div style={{ fontSize: 11, color: '#636385', marginTop: 5 }}>
-                    ≈ {fmt((editItem as Position).costPerUnit / eurUsd)} au taux 1 USD = {(1 / eurUsd).toFixed(4)} €
-                  </div>
-                )}
+                {editItem.currency === 'USD' && (editItem as Position).costPerUnit > 0 && (() => {
+                  const rate = (editItem as Position).purchaseEurUsd ?? eurUsd
+                  return (
+                    <div style={{ fontSize: 11, color: '#636385', marginTop: 5 }}>
+                      ≈ {fmt((editItem as Position).costPerUnit / rate)} au taux 1 USD = {(1 / rate).toFixed(4)} €
+                      {(editItem as Position).purchaseEurUsd && <span style={{ color: 'oklch(65% 0.18 148)', marginLeft: 6 }}>taux historique</span>}
+                    </div>
+                  )
+                })()}
               </div>
+              {/* Date d'achat — pour récupérer le taux EUR/USD historique */}
+              {editItem.currency === 'USD' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>Date d&apos;achat</label>
+                    {(editItem as Position).purchaseEurUsd && (
+                      <span style={{ fontSize: 11, color: 'oklch(65% 0.18 148)' }}>
+                        1 EUR = {((editItem as Position).purchaseEurUsd!).toFixed(4)} USD ce jour-là
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="date" value={(editItem as Position).purchaseDate ?? ''}
+                      onChange={e => setEditItem(x => ({ ...x, purchaseDate: e.target.value, purchaseEurUsd: undefined }))}
+                      style={{ ...inputCss, flex: 1 }} />
+                    <button type="button" disabled={!(editItem as Position).purchaseDate || fetchingRate}
+                      onClick={() => fetchHistoricalRate((editItem as Position).purchaseDate!)}
+                      style={{ padding: '0 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter',
+                        background: 'oklch(63% 0.19 250 / 0.15)', border: '1px solid oklch(63% 0.19 250 / 0.4)', color: 'oklch(63% 0.19 250)',
+                        opacity: !(editItem as Position).purchaseDate || fetchingRate ? 0.5 : 1 }}>
+                      {fetchingRate ? '…' : 'Récupérer taux'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#636385', marginTop: 4 }}>
+                    Cliquez pour récupérer le taux EUR/USD exact de ce jour via Yahoo Finance
+                  </div>
+                </div>
+              )}
             </>)}
             {editItem._type === 'livrets' && (<>
               <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du compte</label>

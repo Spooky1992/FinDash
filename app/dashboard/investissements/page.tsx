@@ -177,12 +177,19 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
-function PositionRow({ p, live, color, selected, onSelect }: {
-  p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string }
-  live: number; color: string; selected: boolean; onSelect: () => void
+function PositionRow({ p, liveRaw, eurUsd, color, selected, onSelect }: {
+  p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD' }
+  liveRaw: number; eurUsd: number; color: string; selected: boolean; onSelect: () => void
 }) {
-  const value = p.quantity * live
-  const cost  = p.quantity * p.costPerUnit
+  // Prix live : Yahoo retourne USD pour tickers US, EUR pour .PA/.AS/-EUR
+  const isEurTicker = p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS') || p.ticker.endsWith('-EUR')
+  const liveEur = isEurTicker ? liveRaw : liveRaw / eurUsd
+  // PRU : converti en EUR selon la devise et le taux historique si disponible
+  const purchaseRate = p.currency === 'USD' ? (p.purchaseEurUsd ?? eurUsd) : eurUsd
+  const cpuEur = p.currency === 'USD' ? p.costPerUnit / purchaseRate : p.costPerUnit
+
+  const value = p.quantity * liveEur
+  const cost  = p.quantity * cpuEur
   const pnl   = value - cost
   const pct   = cost > 0 ? (pnl / cost) * 100 : 0
   return (
@@ -199,8 +206,13 @@ function PositionRow({ p, live, color, selected, onSelect }: {
         </div>
       </td>
       <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2' }}>{p.quantity}</td>
-      <td style={{ padding: '12px 10px', fontSize: 12, color: '#636385', textAlign: 'right' }}>{fmt(p.costPerUnit)}</td>
-      <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(live)}</td>
+      <td style={{ padding: '12px 10px', fontSize: 12, color: '#636385', textAlign: 'right' }}>
+        {p.currency === 'USD'
+          ? <><span style={{ color: '#e8e8f2' }}>{p.costPerUnit.toFixed(2)}</span><span style={{ fontSize: 9, color: 'oklch(68% 0.17 55)', marginLeft: 3 }}>USD</span><br /><span style={{ fontSize: 10, color: '#3a3a50' }}>≈ {fmt(cpuEur)}</span></>
+          : fmt(cpuEur)
+        }
+      </td>
+      <td style={{ padding: '12px 10px', fontSize: 13, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(liveEur)}</td>
       <td style={{ padding: '12px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
       <td style={{ padding: '12px 10px', textAlign: 'right' }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{pnl >= 0 ? '+' : ''}{fmt(pnl)}</div>
@@ -245,10 +257,23 @@ export default function InvestissementsPage() {
 
   const peaPositions    = portfolio.pea.positions
   const cryptoPositions = portfolio.crypto.positions
-  const peaValue    = peaPositions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
-  const peaCost     = peaPositions.reduce((s, p) => s + p.quantity * p.costPerUnit, 0)
-  const cryptoValue = cryptoPositions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
-  const cryptoCost  = cryptoPositions.reduce((s, p) => s + p.quantity * p.costPerUnit, 0)
+  const rate = eurUsd ?? 1.1
+
+  function liveEur(p: typeof peaPositions[0]) {
+    const raw = prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit
+    const isEurTicker = p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS') || p.ticker.endsWith('-EUR')
+    return isEurTicker ? raw : raw / rate
+  }
+  function cpuEur(p: typeof peaPositions[0]) {
+    if ((p as { currency?: string }).currency !== 'USD') return p.costPerUnit
+    const purchaseRate = (p as { purchaseEurUsd?: number }).purchaseEurUsd ?? rate
+    return p.costPerUnit / purchaseRate
+  }
+
+  const peaValue    = peaPositions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
+  const peaCost     = peaPositions.reduce((s, p) => s + p.quantity * cpuEur(p), 0)
+  const cryptoValue = cryptoPositions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
+  const cryptoCost  = cryptoPositions.reduce((s, p) => s + p.quantity * cpuEur(p), 0)
   const totalValue  = peaValue + cryptoValue
   const totalCost   = peaCost + cryptoCost
   const totalPnL    = totalValue - totalCost
@@ -319,7 +344,7 @@ export default function InvestissementsPage() {
               <span style={{ fontSize: 13, color: '#636385' }}>{fmt(peaValue)}</span>
             </div>
             <span style={{ fontSize: 13, fontWeight: 600, color: peaValue - peaCost >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-              {peaValue - peaCost >= 0 ? '+' : ''}{fmt(peaValue - peaCost)} ({peaCost > 0 ? fmtPct((peaValue - peaCost) / peaCost * 100) : '—'})
+              {peaValue - peaCost >= 0 ? '+' : ''}{fmt(peaValue - peaCost)} ({peaCost > 0 ? fmtPct((peaValue - peaCost) / peaCost * 100) : '—'}) en €
             </span>
           </div>
           <div className="table-scroll">
@@ -333,7 +358,8 @@ export default function InvestissementsPage() {
               {peaPositions.map(p => (
                 <PositionRow
                   key={p.id} p={p}
-                  live={prices[p.ticker] ?? p.price ?? p.costPerUnit}
+                  liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                  eurUsd={rate}
                   color={CAT_COLOR_PEA}
                   selected={selected === p.id}
                   onSelect={() => setSelected(s => s === p.id ? null : p.id)}
@@ -377,7 +403,8 @@ export default function InvestissementsPage() {
               {cryptoPositions.map(p => (
                 <PositionRow
                   key={p.id} p={p}
-                  live={prices[p.ticker] ?? p.price ?? p.costPerUnit}
+                  liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                  eurUsd={rate}
                   color={CAT_COLOR_CRYPTO}
                   selected={selected === p.id}
                   onSelect={() => setSelected(s => s === p.id ? null : p.id)}
