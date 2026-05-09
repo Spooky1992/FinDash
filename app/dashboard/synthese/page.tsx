@@ -2,60 +2,29 @@
 import { useMemo } from 'react'
 import { useAppData } from '@/hooks/useAppData'
 import { fmt, fmtPct, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, cardCss } from '@/lib/utils'
+import { Treemap, TreemapLegend, type TreemapItem } from '@/components/Treemap'
 
-function MiniBarChart({ data, colors }: { data: { label: string; value: number }[]; colors: string[] }) {
+function VerticalBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  if (data.length === 0) return <div style={{ color: '#636385', fontSize: 12 }}>Aucune dépense configurée</div>
+  const H = 160, barW = 44, gap = 14, padT = 16, padB = 28
   const max = Math.max(...data.map(d => d.value), 1)
+  const W = data.length * (barW + gap) + gap
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {data.map((d, i) => (
-        <div key={i}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontSize: 11 }}>
-            <span style={{ color: '#636385' }}>{d.label}</span>
-            <span style={{ color: '#e8e8f2', fontWeight: 600 }}>{fmt(d.value)}</span>
-          </div>
-          <div style={{ height: 6, background: '#1c1c27', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(d.value / max) * 100}%`, background: colors[i % colors.length], borderRadius: 3, transition: 'width 0.4s' }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function DonutChart({ slices }: { slices: { label: string; value: number; color: string }[] }) {
-  const total = slices.reduce((s, x) => s + x.value, 0)
-  if (total === 0) return <div style={{ color: '#636385', fontSize: 12, textAlign: 'center' }}>Aucune donnée</div>
-
-  let angle = -Math.PI / 2
-  const R = 60, r = 38, cx = 80, cy = 80
-
-  const paths = slices.map(s => {
-    const a = (s.value / total) * 2 * Math.PI
-    const x1 = cx + R * Math.cos(angle), y1 = cy + R * Math.sin(angle)
-    const x2 = cx + R * Math.cos(angle + a), y2 = cy + R * Math.sin(angle + a)
-    const ix1 = cx + r * Math.cos(angle), iy1 = cy + r * Math.sin(angle)
-    const ix2 = cx + r * Math.cos(angle + a), iy2 = cy + r * Math.sin(angle + a)
-    const large = a > Math.PI ? 1 : 0
-    const d = `M${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${r},${r} 0 ${large},0 ${ix1},${iy1}Z`
-    angle += a
-    return { ...s, d }
-  })
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-      <svg viewBox="0 0 160 160" style={{ width: 120, flexShrink: 0 }}>
-        {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
-      </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {slices.map((s, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
-            <span style={{ color: '#636385' }}>{s.label}</span>
-            <span style={{ color: '#e8e8f2', fontWeight: 600, marginLeft: 'auto' }}>{((s.value / total) * 100).toFixed(1)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
+      {data.map((d, i) => {
+        const bh = ((d.value / max) * (H - padT - padB))
+        const bx = gap + i * (barW + gap)
+        const by = padT + (H - padT - padB) - bh
+        return (
+          <g key={d.label}>
+            <rect x={bx} y={by} width={barW} height={bh} rx={5} fill={d.color} fillOpacity={0.85} />
+            <text x={bx + barW / 2} y={H - 8} textAnchor="middle" fontSize={9} fill="#636385" fontFamily="Inter, sans-serif">
+              {d.label.length > 7 ? d.label.slice(0, 6) + '…' : d.label}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -121,14 +90,14 @@ export default function SynthesePage() {
   // Transactions récentes (30 derniers jours)
   const recentTx = transactions.slice(0, 10)
 
-  // Allocation patrimoine
-  const allocSlices = [
-    { label: 'Liquidités', value: compte.solde, color: 'oklch(63% 0.19 250)' },
-    { label: 'Actions/ETF', value: peaTotal, color: 'oklch(65% 0.18 148)' },
-    { label: 'Crypto',      value: cryptoTotal, color: 'oklch(68% 0.17 55)' },
-    { label: 'Livrets',     value: livretsTotal, color: 'oklch(65% 0.16 185)' },
-    { label: 'Immobilier',  value: immoTotal, color: 'oklch(63% 0.19 290)' },
-  ].filter(s => s.value > 0)
+  // Allocation patrimoine (treemap)
+  const allocItems: TreemapItem[] = [
+    { label: 'Liquidités',  value: compte.solde,  color: 'oklch(63% 0.19 250)' },
+    { label: 'Actions/ETF', value: peaTotal,       color: 'oklch(65% 0.18 148)' },
+    { label: 'Crypto',      value: cryptoTotal,    color: 'oklch(68% 0.17 55)'  },
+    { label: 'Livrets',     value: livretsTotal,   color: 'oklch(65% 0.16 185)' },
+    { label: 'Immobilier',  value: immoTotal,      color: 'oklch(63% 0.19 290)' },
+  ].filter(s => s.value > 0).map(s => ({ ...s, sub: `${patrimoineTotal > 0 ? ((s.value / patrimoineTotal) * 100).toFixed(1) : 0}%` }))
 
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
@@ -157,11 +126,15 @@ export default function SynthesePage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Allocation */}
         <div style={cardCss}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Allocation patrimoine</div>
-          {allocSlices.length > 0
-            ? <DonutChart slices={allocSlices} />
-            : <div style={{ color: '#636385', fontSize: 12 }}>Aucune donnée</div>
-          }
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Allocation patrimoine</div>
+          {allocItems.length > 0 ? (
+            <>
+              <Treemap items={allocItems} height={180} />
+              <div style={{ marginTop: 10 }}><TreemapLegend items={allocItems} /></div>
+            </>
+          ) : (
+            <div style={{ color: '#636385', fontSize: 12 }}>Aucune donnée</div>
+          )}
         </div>
 
         {/* Projection */}
@@ -185,11 +158,11 @@ export default function SynthesePage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Dépenses par catégorie */}
         <div style={cardCss}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Dépenses — {monthLabel(curKey)}</div>
-          {depCat.length > 0
-            ? <MiniBarChart data={depCat} colors={['oklch(62% 0.20 25)', 'oklch(68% 0.17 55)', 'oklch(63% 0.19 290)', 'oklch(65% 0.16 185)', 'oklch(63% 0.19 250)']} />
-            : <div style={{ color: '#636385', fontSize: 12 }}>Aucune dépense configurée</div>
-          }
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Dépenses — {monthLabel(curKey)}</div>
+          <VerticalBarChart data={depCat.map((d, i) => ({
+            ...d,
+            color: ['oklch(62% 0.20 25)', 'oklch(68% 0.17 55)', 'oklch(63% 0.19 290)', 'oklch(65% 0.16 185)', 'oklch(63% 0.19 250)'][i % 5],
+          }))} />
         </div>
 
         {/* Transactions récentes */}

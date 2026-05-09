@@ -1,23 +1,15 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppData } from '@/hooks/useAppData'
 import { fmt, fmtPct, cardCss, inputCss, btnCss, COLOR_LIST } from '@/lib/utils'
 import type { Position, Livret, Immo, Portfolio } from '@/lib/types'
+import { Treemap, TreemapLegend, type TreemapItem } from '@/components/Treemap'
 
 async function fetchStockPrice(ticker: string): Promise<number | null> {
-  try {
-    const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
-    const d = await r.json()
-    return d.price ?? null
-  } catch { return null }
+  try { const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`); const d = await r.json(); return d.price ?? null } catch { return null }
 }
-
 async function fetchCryptoPrice(coinId: string): Promise<number | null> {
-  try {
-    const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(coinId)}`)
-    const d = await r.json()
-    return d.price ?? null
-  } catch { return null }
+  try { const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(coinId)}`); const d = await r.json(); return d.price ?? null } catch { return null }
 }
 
 const KNOWN_COINS: Record<string, string> = {
@@ -29,142 +21,60 @@ const KNOWN_COINS: Record<string, string> = {
 const CAT_COLORS: Record<string, string> = {
   pea:     'oklch(63% 0.19 250)',
   crypto:  'oklch(68% 0.17 55)',
-  livrets: 'oklch(68% 0.17 55 / 0.7)',
+  livrets: 'oklch(65% 0.16 185)',
   immo:    'oklch(65% 0.18 148)',
 }
 
 function uid() { return `p-${Date.now()}-${Math.random().toString(36).slice(2,6)}` }
-
 type Tab = 'pea' | 'crypto' | 'livrets' | 'immo'
 
-// ── Treemap ───────────────────────────────────────────────────────────────────
-interface TileItem { label: string; value: number; color: string; sub?: string }
-interface Rect { x: number; y: number; w: number; h: number; item: TileItem }
-
-function squarify(items: TileItem[], x: number, y: number, w: number, h: number): Rect[] {
-  if (items.length === 0) return []
-  const total = items.reduce((s, i) => s + i.value, 0)
-  if (total === 0) return []
-
-  const rects: Rect[] = []
-  const remaining = [...items].sort((a, b) => b.value - a.value)
-
-  let rx = x, ry = y, rw = w, rh = h
-
-  while (remaining.length > 0) {
-    const area = rw * rh
-    const totalRemaining = remaining.reduce((s, i) => s + i.value, 0)
-    const isWide = rw >= rh
-
-    let bestRow: TileItem[] = []
-    let bestRatio = Infinity
-    const row: TileItem[] = []
-
-    for (const item of remaining) {
-      row.push(item)
-      const rowTotal = row.reduce((s, i) => s + i.value, 0)
-      const rowSize = isWide ? rh : rw
-      const rowLength = (rowTotal / totalRemaining) * (isWide ? rw : rh)
-      let maxRatio = 0
-      for (const r of row) {
-        const tileSize = (r.value / rowTotal) * rowSize
-        const ratio = Math.max(rowLength / tileSize, tileSize / rowLength)
-        if (ratio > maxRatio) maxRatio = ratio
-      }
-      if (maxRatio < bestRatio) { bestRatio = maxRatio; bestRow = [...row] }
-      else break
-    }
-
-    const rowTotal = bestRow.reduce((s, i) => s + i.value, 0)
-    const rowFrac = rowTotal / totalRemaining
-    const rowLength = isWide ? rw * rowFrac : rh * rowFrac
-
-    let off = 0
-    for (const item of bestRow) {
-      const frac = item.value / rowTotal
-      const tileLen = (isWide ? rh : rw) * frac
-      if (isWide) {
-        rects.push({ x: rx, y: ry + off, w: rowLength, h: tileLen, item })
-      } else {
-        rects.push({ x: rx + off, y: ry, w: tileLen, h: rowLength, item })
-      }
-      off += tileLen
-      remaining.splice(remaining.indexOf(item), 1)
-    }
-
-    if (isWide) { rx += rowLength; rw -= rowLength }
-    else         { ry += rowLength; rh -= rowLength }
-  }
-
-  return rects
-}
-
-function Treemap({ items, width = 560, height = 240 }: { items: TileItem[]; width?: number; height?: number }) {
-  const [hovered, setHovered] = useState<string | null>(null)
-  const rects = useMemo(() => squarify(items.filter(i => i.value > 0), 0, 0, width, height), [items, width, height])
-
-  if (rects.length === 0) return (
-    <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#636385', fontSize: 13 }}>
-      Aucune donnée
-    </div>
-  )
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height }}>
-      {rects.map((r, i) => {
-        const isHov = hovered === r.item.label
-        const pad = 3
-        return (
-          <g key={i} onMouseEnter={() => setHovered(r.item.label)} onMouseLeave={() => setHovered(null)} style={{ cursor: 'default' }}>
-            <rect x={r.x + pad} y={r.y + pad} width={Math.max(r.w - pad*2, 0)} height={Math.max(r.h - pad*2, 0)}
-              rx={10} fill={r.item.color} fillOpacity={isHov ? 0.95 : 0.85} style={{ transition: 'fill-opacity 0.15s' }} />
-            {r.w > 80 && r.h > 50 && (
-              <>
-                <text x={r.x + r.w / 2} y={r.y + r.h / 2 - (r.h > 80 ? 12 : 4)}
-                  textAnchor="middle" fontSize={Math.min(14, r.w / 7)} fontWeight={700} fill="#fff" fontFamily="Inter, sans-serif">
-                  {fmt(r.item.value)}
-                </text>
-                {r.h > 80 && (
-                  <text x={r.x + r.w / 2} y={r.y + r.h / 2 + 8}
-                    textAnchor="middle" fontSize={Math.min(11, r.w / 9)} fill="rgba(255,255,255,0.75)" fontFamily="Inter, sans-serif">
-                    {r.item.label}{r.item.sub ? ` • ${r.item.sub}` : ''}
-                  </text>
-                )}
-              </>
-            )}
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-// ── Bar chart dépenses ────────────────────────────────────────────────────────
-function ExpenseBar({ budget }: { budget: ReturnType<typeof useAppData>['budget'] }) {
+// ── Bar chart vertical dépenses ───────────────────────────────────────────────
+function VerticalBarChart({ budget }: { budget: ReturnType<typeof useAppData>['budget'] }) {
   const cats = budget.expenses
     .map(cat => ({ label: cat.label, val: cat.items.reduce((s, i) => s + i.amount, 0), color: cat.items[0]?.color ?? '#636385' }))
     .filter(c => c.val > 0)
     .sort((a, b) => b.val - a.val)
 
   if (cats.length === 0) return null
+
+  const H = 220
+  const barW = 54
+  const gap = 16
+  const padT = 20
+  const padB = 30
   const max = cats[0].val
+  const W = cats.length * (barW + gap) + gap
 
   return (
-    <div style={{ ...cardCss, minWidth: 260 }}>
+    <div style={{ ...cardCss, minWidth: 240 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 14 }}>Dépenses par catégorie</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {cats.map(c => (
-          <div key={c.label}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: '#636385' }}>{c.label}</span>
-              <span style={{ fontSize: 11, color: '#e8e8f2', fontWeight: 600 }}>{fmt(c.val)}</span>
-            </div>
-            <div style={{ height: 6, borderRadius: 3, background: '#252535', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${(c.val / max) * 100}%`, background: c.color, borderRadius: 3, transition: 'width 0.4s' }} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
+        {/* Gridlines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const y = padT + (1 - f) * (H - padT - padB)
+          return (
+            <g key={f}>
+              <line x1={0} y1={y} x2={W} y2={y} stroke="#1c1c27" strokeWidth={1} />
+              <text x={0} y={y - 3} fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">
+                {Math.round(f * max)} €
+              </text>
+            </g>
+          )
+        })}
+        {cats.map((c, i) => {
+          const bh = ((c.val / max) * (H - padT - padB))
+          const bx = gap + i * (barW + gap)
+          const by = padT + (H - padT - padB) - bh
+          return (
+            <g key={c.label}>
+              <rect x={bx} y={by} width={barW} height={bh} rx={6} fill={c.color} fillOpacity={0.85} />
+              <text x={bx + barW / 2} y={H - 8} textAnchor="middle" fontSize={10} fill="#636385" fontFamily="Inter, sans-serif">
+                {c.label.length > 8 ? c.label.slice(0, 7) + '…' : c.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
@@ -227,11 +137,11 @@ export default function PatrimoinePage() {
     await savePortfolio(p)
   }
 
-  const peaTotal    = portfolio.pea.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
-  const cryptoTotal = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
+  const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
+  const cryptoTotal  = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
   const livretsTotal = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
-  const immoTotal   = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
-  const grandTotal  = peaTotal + cryptoTotal + livretsTotal + immoTotal
+  const immoTotal    = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
+  const grandTotal   = peaTotal + cryptoTotal + livretsTotal + immoTotal
 
   const TABS: { key: Tab; label: string; total: number }[] = [
     { key: 'pea',     label: 'Actions & Fonds', total: peaTotal },
@@ -240,33 +150,10 @@ export default function PatrimoinePage() {
     { key: 'immo',    label: 'Immobilier',       total: immoTotal },
   ]
 
-  // Treemap items — une tile par asset
-  const treemapItems: TileItem[] = [
-    ...portfolio.pea.positions.map(p => ({
-      label: p.ticker,
-      value: p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit),
-      color: CAT_COLORS.pea,
-      sub: p.name,
-    })),
-    ...portfolio.crypto.positions.map(p => ({
-      label: p.ticker,
-      value: p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit),
-      color: CAT_COLORS.crypto,
-      sub: 'Crypto',
-    })),
-    ...portfolio.livrets.accounts.map(l => ({
-      label: l.name,
-      value: l.solde,
-      color: CAT_COLORS.livrets,
-      sub: `${l.rate}%`,
-    })),
-    ...portfolio.immo.properties.map(i => ({
-      label: i.name,
-      value: i.value,
-      color: CAT_COLORS.immo,
-      sub: 'Immo',
-    })),
-  ]
+  // Treemap : une tuile par catégorie (pas par actif individuel)
+  const treemapItems: TreemapItem[] = TABS
+    .filter(t => t.total > 0)
+    .map(t => ({ label: t.label, value: t.total, color: CAT_COLORS[t.key], sub: `${grandTotal > 0 ? ((t.total / grandTotal) * 100).toFixed(1) : 0}%` }))
 
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
@@ -285,12 +172,25 @@ export default function PatrimoinePage() {
         </div>
       </div>
 
-      {/* KPI cards */}
+      {/* Treemap + bar chart */}
+      {grandTotal > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'start' }}>
+          <div style={cardCss}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Allocation</div>
+            <Treemap items={treemapItems} height={280} />
+            <div style={{ marginTop: 14 }}>
+              <TreemapLegend items={treemapItems} />
+            </div>
+          </div>
+          <VerticalBarChart budget={budget} />
+        </div>
+      )}
+
+      {/* KPI cards (cliquables pour changer l'onglet) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         {TABS.map(t => (
           <div key={t.key} onClick={() => setTab(t.key)} style={{ ...cardCss, padding: '14px 16px', cursor: 'pointer',
-            border: `1px solid ${tab === t.key ? `${CAT_COLORS[t.key]}80` : '#252535'}`,
-            transition: 'border-color 0.15s' }}>
+            border: `1px solid ${tab === t.key ? `${CAT_COLORS[t.key]}80` : '#252535'}`, transition: 'border-color 0.15s' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: 2, background: CAT_COLORS[t.key] }} />
               <span style={{ fontSize: 11, color: '#636385' }}>{t.label}</span>
@@ -300,27 +200,6 @@ export default function PatrimoinePage() {
           </div>
         ))}
       </div>
-
-      {/* Treemap + legend */}
-      {grandTotal > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'start' }}>
-          <div style={cardCss}>
-            <Treemap items={treemapItems} height={220} />
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-              {TABS.filter(t => t.total > 0).map(t => (
-                <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: CAT_COLORS[t.key] }} />
-                  <span style={{ fontSize: 11, color: '#636385' }}>
-                    {t.label} <span style={{ color: '#e8e8f2', fontWeight: 600 }}>{grandTotal > 0 ? ((t.total / grandTotal) * 100).toFixed(1) : 0}%</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <ExpenseBar budget={budget} />
-        </div>
-      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6 }}>
@@ -350,18 +229,18 @@ export default function PatrimoinePage() {
             </tr></thead>
             <tbody>
               {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).map(pos => {
-                const live = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
-                const value = pos.quantity * live
-                const cost  = pos.quantity * pos.costPerUnit
-                const pnl   = value - cost
+                const live   = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
+                const value  = pos.quantity * live
+                const cost   = pos.quantity * pos.costPerUnit
+                const pnl    = value - cost
                 const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
-                const col = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
+                const col    = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
                 return (
                   <tr key={pos.id} style={{ borderBottom: '1px solid #1c1c27' }}>
                     <td style={{ padding: '10px 10px' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${col}22`, borderRadius: 6, padding: '3px 8px' }}>
                         <div style={{ width: 22, height: 22, borderRadius: 6, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
-                          {pos.ticker.slice(0, 2)}
+                          {pos.ticker.replace('-EUR','').replace('.AS','').replace('.PA','').slice(0,2)}
                         </div>
                         <span style={{ fontWeight: 700, color: col, fontSize: 12 }}>{pos.ticker}</span>
                       </div>
@@ -443,36 +322,30 @@ export default function PatrimoinePage() {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2', marginBottom: 4 }}>
               {(editItem as Position).ticker || (editItem as Livret).name || (editItem as Immo).name ? 'Modifier' : 'Ajouter'} — {TABS.find(t => t.key === editItem._type)?.label}
             </div>
-            {(editItem._type === 'pea' || editItem._type === 'crypto') && (
-              <>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Ticker</label>
-                  <input value={editItem.ticker ?? ''} onChange={e => setEditItem(x => ({ ...x, ticker: e.target.value.toUpperCase() }))} style={inputCss} placeholder="Ex: IWDA.AS, BTC" /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom (optionnel)</label>
-                  <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Quantité</label>
-                  <input type="number" step="any" value={(editItem as Position).quantity ?? ''} onChange={e => setEditItem(x => ({ ...x, quantity: parseFloat(e.target.value) }))} style={inputCss} /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Prix d&apos;achat moyen (€)</label>
-                  <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              </>
-            )}
-            {editItem._type === 'livrets' && (
-              <>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du compte</label>
-                  <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Livret A, LDD…" /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux (%)</label>
-                  <input type="number" step="0.01" value={(editItem as Livret).rate ?? ''} onChange={e => setEditItem(x => ({ ...x, rate: parseFloat(e.target.value) }))} style={inputCss} /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Solde (€)</label>
-                  <input type="number" step="0.01" value={(editItem as Livret).solde ?? ''} onChange={e => setEditItem(x => ({ ...x, solde: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              </>
-            )}
-            {editItem._type === 'immo' && (
-              <>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du bien</label>
-                  <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Appartement, maison…" /></div>
-                <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Valeur estimée (€)</label>
-                  <input type="number" step="1000" value={(editItem as Immo).value ?? ''} onChange={e => setEditItem(x => ({ ...x, value: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              </>
-            )}
+            {(editItem._type === 'pea' || editItem._type === 'crypto') && (<>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Ticker</label>
+                <input value={editItem.ticker ?? ''} onChange={e => setEditItem(x => ({ ...x, ticker: e.target.value.toUpperCase() }))} style={inputCss} placeholder="Ex: IWDA.AS, BTC" /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom (optionnel)</label>
+                <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Quantité</label>
+                <input type="number" step="any" value={(editItem as Position).quantity ?? ''} onChange={e => setEditItem(x => ({ ...x, quantity: parseFloat(e.target.value) }))} style={inputCss} /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Prix d&apos;achat moyen (€)</label>
+                <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} /></div>
+            </>)}
+            {editItem._type === 'livrets' && (<>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du compte</label>
+                <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Livret A, LDD…" /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux (%)</label>
+                <input type="number" step="0.01" value={(editItem as Livret).rate ?? ''} onChange={e => setEditItem(x => ({ ...x, rate: parseFloat(e.target.value) }))} style={inputCss} /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Solde (€)</label>
+                <input type="number" step="0.01" value={(editItem as Livret).solde ?? ''} onChange={e => setEditItem(x => ({ ...x, solde: parseFloat(e.target.value) }))} style={inputCss} /></div>
+            </>)}
+            {editItem._type === 'immo' && (<>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Nom du bien</label>
+                <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Appartement, maison…" /></div>
+              <div><label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Valeur estimée (€)</label>
+                <input type="number" step="1000" value={(editItem as Immo).value ?? ''} onChange={e => setEditItem(x => ({ ...x, value: parseFloat(e.target.value) }))} style={inputCss} /></div>
+            </>)}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
               <button onClick={() => { setShowForm(false); setEditItem({}) }} style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385' }}>Annuler</button>
               <button onClick={saveItem} style={btnCss()}>Enregistrer</button>

@@ -1,7 +1,7 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppData } from '@/hooks/useAppData'
-import { fmt, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, COLOR_LIST, cardCss, inputCss, btnCss } from '@/lib/utils'
+import { fmt, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, COLOR_LIST, cardCss, inputCss } from '@/lib/utils'
 import type { Budget, MonthPlan } from '@/lib/types'
 
 // ── Sankey ────────────────────────────────────────────────────────────────────
@@ -95,84 +95,207 @@ function SankeyDiagram({ budget }: { budget: Budget }) {
   )
 }
 
-// ── Budget panel (right column) ───────────────────────────────────────────────
-function BudgetPanel({ budget, onEdit }: { budget: Budget; onEdit: () => void }) {
+// ── Inline editable field ─────────────────────────────────────────────────────
+function InlineAmount({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(value))
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) ref.current?.focus() }, [editing])
+
+  function commit() {
+    const n = parseFloat(draft.replace(',', '.'))
+    if (!isNaN(n) && n >= 0) onSave(n)
+    setEditing(false)
+  }
+
+  if (editing) return (
+    <input
+      ref={ref}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+      style={{ ...inputCss, width: 80, padding: '2px 6px', fontSize: 12, textAlign: 'right' }}
+    />
+  )
+
+  return (
+    <span
+      onClick={() => { setDraft(String(value)); setEditing(true) }}
+      title="Cliquer pour modifier"
+      style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500, cursor: 'text', borderBottom: '1px dashed #2a2a3a', paddingBottom: 1 }}
+    >
+      {value.toLocaleString('fr-FR')} €
+    </span>
+  )
+}
+
+function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) ref.current?.focus() }, [editing])
+
+  function commit() {
+    if (draft.trim()) onSave(draft.trim())
+    setEditing(false)
+  }
+
+  if (editing) return (
+    <input
+      ref={ref}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+      style={{ ...inputCss, flex: 1, padding: '2px 6px', fontSize: 12 }}
+    />
+  )
+
+  return (
+    <span
+      onClick={() => { setDraft(value); setEditing(true) }}
+      title="Cliquer pour modifier"
+      style={{ fontSize: 12, color: '#e8e8f2', cursor: 'text', borderBottom: '1px dashed #2a2a3a', paddingBottom: 1 }}
+    >
+      {value}
+    </span>
+  )
+}
+
+// ── Budget panel (inline editable) ────────────────────────────────────────────
+function BudgetPanel({ budget, onSave }: { budget: Budget; onSave: (b: Budget) => void }) {
   const totalIncome  = budget.incomes.reduce((s, i) => s + i.amount, 0)
   const totalExpense = budget.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
   const totalSaving  = budget.savings.reduce((s, i) => s + i.amount, 0)
   const surplus      = totalIncome - totalExpense - totalSaving
 
-  return (
-    <div style={{ ...cardCss, display: 'flex', flexDirection: 'column', gap: 0, minWidth: 280 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Budget mensuel de base</span>
-        <button onClick={onEdit} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>)</button>
-      </div>
+  function updateIncome(id: string, patch: Partial<{ label: string; amount: number }>) {
+    onSave({ ...budget, incomes: budget.incomes.map(i => i.id === id ? { ...i, ...patch } : i) })
+  }
+  function deleteIncome(id: string) {
+    onSave({ ...budget, incomes: budget.incomes.filter(i => i.id !== id) })
+  }
+  function addIncome() {
+    onSave({ ...budget, incomes: [...budget.incomes, { id: `i${Date.now()}`, label: 'Nouveau revenu', amount: 0, color: COLOR_LIST[budget.incomes.length % COLOR_LIST.length] }] })
+  }
 
-      {/* Revenus */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 10, color: 'oklch(65% 0.18 148)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span>↑</span> REVENUS
-        </div>
+  function updateExpenseItem(catLabel: string, itemLabel: string, patch: Partial<{ label: string; amount: number }>) {
+    onSave({
+      ...budget,
+      expenses: budget.expenses.map(cat =>
+        cat.label === catLabel
+          ? { ...cat, items: cat.items.map(i => i.label === itemLabel ? { ...i, ...patch } : i) }
+          : cat
+      ),
+    })
+  }
+  function deleteExpenseItem(catLabel: string, itemLabel: string) {
+    onSave({
+      ...budget,
+      expenses: budget.expenses.map(cat =>
+        cat.label === catLabel ? { ...cat, items: cat.items.filter(i => i.label !== itemLabel) } : cat
+      ).filter(cat => cat.items.length > 0),
+    })
+  }
+  function addExpenseItem(catLabel: string) {
+    onSave({
+      ...budget,
+      expenses: budget.expenses.map(cat =>
+        cat.label === catLabel
+          ? { ...cat, items: [...cat.items, { label: 'Dépense', amount: 0, color: COLOR_LIST[cat.items.length % COLOR_LIST.length] }] }
+          : cat
+      ),
+    })
+  }
+  function addExpenseCategory() {
+    onSave({ ...budget, expenses: [...budget.expenses, { id: `c${Date.now()}`, label: 'Catégorie', items: [{ label: 'Dépense', amount: 0, color: COLOR_LIST[0] }] }] })
+  }
+
+  function updateSaving(id: string, patch: Partial<{ label: string; amount: number }>) {
+    onSave({ ...budget, savings: budget.savings.map(s => s.id === id ? { ...s, ...patch } : s) })
+  }
+  function deleteSaving(id: string) {
+    onSave({ ...budget, savings: budget.savings.filter(s => s.id !== id) })
+  }
+  function addSaving() {
+    onSave({ ...budget, savings: [...budget.savings, { id: `s${Date.now()}`, label: 'Épargne', amount: 0, color: COLOR_LIST[budget.savings.length % COLOR_LIST.length] }] })
+  }
+
+  const iconBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#3a3a50', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1, flexShrink: 0 }
+  const addBtn: React.CSSProperties = { background: 'none', border: '1px dashed #2a2a3a', borderRadius: 5, color: '#3a3a50', cursor: 'pointer', fontSize: 11, padding: '3px 8px', fontFamily: 'Inter', width: '100%', textAlign: 'left', marginTop: 4 }
+
+  return (
+    <div style={{ ...cardCss, display: 'flex', flexDirection: 'column', gap: 0, minWidth: 280, maxWidth: 320 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 14 }}>Budget mensuel de base</div>
+
+      {/* REVENUS */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, color: 'oklch(65% 0.18 148)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>↑ REVENUS</div>
         {budget.incomes.map(inc => (
-          <div key={inc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: inc.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#e8e8f2' }}>{inc.label}</span>
+          <div key={inc.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: '1px solid #1c1c27' }}>
+            <div style={{ width: 7, height: 7, borderRadius: 2, background: inc.color, flexShrink: 0 }} />
+            <InlineLabel value={inc.label} onSave={v => updateIncome(inc.id, { label: v })} />
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <InlineAmount value={inc.amount} onSave={v => updateIncome(inc.id, { amount: v })} />
+              <button style={iconBtn} onClick={() => deleteIncome(inc.id)} title="Supprimer">✕</button>
             </div>
-            <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{inc.amount.toLocaleString('fr-FR')} €</span>
           </div>
         ))}
+        <button style={addBtn} onClick={addIncome}>+ Ajouter un revenu</button>
       </div>
 
-      {/* Dépenses */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 10, color: 'oklch(62% 0.20 25)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span>↓</span> DÉPENSES
-        </div>
+      {/* DÉPENSES */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, color: 'oklch(62% 0.20 25)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>↓ DÉPENSES</div>
         {budget.expenses.map(cat => {
           const total = cat.items.reduce((s, i) => s + i.amount, 0)
-          if (total === 0) return null
           return (
-            <div key={cat.label}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
+            <div key={cat.label} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #252535' }}>
                 <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{cat.label}</span>
-                <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{total.toLocaleString('fr-FR')} €</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#636385' }}>{total.toLocaleString('fr-FR')} €</span>
+                  <button style={iconBtn} onClick={() => addExpenseItem(cat.label)} title="Ajouter une ligne">+</button>
+                </div>
               </div>
               {cat.items.map(item => (
-                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 3px 16px', borderBottom: '1px solid #13131b' }}>
-                  <span style={{ fontSize: 11, color: '#636385' }}>{item.label}</span>
-                  <span style={{ fontSize: 11, color: '#636385' }}>{item.amount.toLocaleString('fr-FR')} €</span>
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0 3px 12px', borderBottom: '1px solid #13131b' }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 1, background: item.color ?? '#636385', flexShrink: 0 }} />
+                  <InlineLabel value={item.label} onSave={v => updateExpenseItem(cat.label, item.label, { label: v })} />
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <InlineAmount value={item.amount} onSave={v => updateExpenseItem(cat.label, item.label, { amount: v })} />
+                    <button style={iconBtn} onClick={() => deleteExpenseItem(cat.label, item.label)} title="Supprimer">✕</button>
+                  </div>
                 </div>
               ))}
             </div>
           )
         })}
+        <button style={addBtn} onClick={addExpenseCategory}>+ Ajouter une catégorie</button>
       </div>
 
-      {/* Épargne */}
-      {budget.savings.some(s => s.amount > 0) && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: 'oklch(63% 0.19 250)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span>○</span> ÉPARGNE
-          </div>
-          {budget.savings.filter(s => s.amount > 0).map(sav => (
-            <div key={sav.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: sav.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: '#e8e8f2' }}>{sav.label}</span>
-              </div>
-              <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{sav.amount.toLocaleString('fr-FR')} €</span>
+      {/* ÉPARGNE */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: 'oklch(63% 0.19 250)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>○ ÉPARGNE</div>
+        {budget.savings.map(sav => (
+          <div key={sav.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: '1px solid #1c1c27' }}>
+            <div style={{ width: 7, height: 7, borderRadius: 2, background: sav.color, flexShrink: 0 }} />
+            <InlineLabel value={sav.label} onSave={v => updateSaving(sav.id, { label: v })} />
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <InlineAmount value={sav.amount} onSave={v => updateSaving(sav.id, { amount: v })} />
+              <button style={iconBtn} onClick={() => deleteSaving(sav.id)} title="Supprimer">✕</button>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+        <button style={addBtn} onClick={addSaving}>+ Ajouter une épargne</button>
+      </div>
 
-      {/* Surplus */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, padding: '8px 0', borderTop: '1px solid #252535' }}>
-        <span style={{ fontSize: 12, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>
-          Surplus / Économies
-        </span>
+      {/* SURPLUS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #252535' }}>
+        <span style={{ fontSize: 12, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>Surplus / Économies</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
           {surplus >= 0 ? '+' : ''}{surplus.toLocaleString('fr-FR')} €
         </span>
@@ -212,103 +335,25 @@ function MonthGrid({ budget, monthPlans, solde }: { budget: Budget; monthPlans: 
   )
 }
 
-// ── Edit panel ────────────────────────────────────────────────────────────────
-function EditPanel({ budget, onSave, onCancel }: { budget: Budget; onSave: (b: Budget) => void; onCancel: () => void }) {
-  const [b, setB] = useState<Budget>(JSON.parse(JSON.stringify(budget)))
-  const [tab, setTab] = useState<'incomes' | 'expenses' | 'savings'>('incomes')
-
-  return (
-    <div style={cardCss}>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {(['incomes', 'expenses', 'savings'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600,
-            background: tab === t ? 'oklch(63% 0.19 250)' : '#1c1c27', border: `1px solid ${tab === t ? 'oklch(63% 0.19 250)' : '#252535'}`,
-            color: tab === t ? '#fff' : '#636385' }}>
-            {t === 'incomes' ? 'Revenus' : t === 'expenses' ? 'Dépenses' : 'Épargne'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'incomes' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {b.incomes.map((inc, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8 }}>
-              <input value={inc.label} onChange={e => { const n = [...b.incomes]; n[i] = { ...n[i], label: e.target.value }; setB({ ...b, incomes: n }) }} style={{ ...inputCss, flex: 1 }} />
-              <input type="number" value={inc.amount || ''} onChange={e => { const n = [...b.incomes]; n[i] = { ...n[i], amount: parseFloat(e.target.value) || 0 }; setB({ ...b, incomes: n }) }} style={{ ...inputCss, width: 110 }} placeholder="€" />
-              <button onClick={() => setB({ ...b, incomes: b.incomes.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => setB({ ...b, incomes: [...b.incomes, { id: `i${Date.now()}`, label: 'Nouveau revenu', amount: 0, color: COLOR_LIST[b.incomes.length % COLOR_LIST.length] }] })}
-            style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385', marginTop: 4 }}>+ Ajouter</button>
-        </div>
-      )}
-
-      {tab === 'expenses' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {b.expenses.map((cat, ci) => (
-            <div key={ci} style={{ background: '#1c1c27', borderRadius: 10, padding: 12 }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input value={cat.label} onChange={e => { const n = [...b.expenses]; n[ci] = { ...n[ci], label: e.target.value }; setB({ ...b, expenses: n }) }} style={{ ...inputCss, flex: 1, fontSize: 12 }} />
-                <button onClick={() => setB({ ...b, expenses: b.expenses.filter((_, j) => j !== ci) })} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>✕</button>
-              </div>
-              {cat.items.map((item, ii) => (
-                <div key={ii} style={{ display: 'flex', gap: 8, marginLeft: 12, marginBottom: 6 }}>
-                  <input value={item.label} onChange={e => { const cats = [...b.expenses]; cats[ci] = { ...cats[ci], items: cats[ci].items.map((x, j) => j === ii ? { ...x, label: e.target.value } : x) }; setB({ ...b, expenses: cats }) }} style={{ ...inputCss, flex: 1, fontSize: 12 }} />
-                  <input type="number" value={item.amount || ''} onChange={e => { const cats = [...b.expenses]; cats[ci] = { ...cats[ci], items: cats[ci].items.map((x, j) => j === ii ? { ...x, amount: parseFloat(e.target.value) || 0 } : x) }; setB({ ...b, expenses: cats }) }} style={{ ...inputCss, width: 90, fontSize: 12 }} placeholder="€" />
-                  <button onClick={() => { const cats = [...b.expenses]; cats[ci] = { ...cats[ci], items: cats[ci].items.filter((_, j) => j !== ii) }; setB({ ...b, expenses: cats }) }} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>✕</button>
-                </div>
-              ))}
-              <button onClick={() => { const cats = [...b.expenses]; cats[ci] = { ...cats[ci], items: [...cats[ci].items, { label: 'Dépense', amount: 0, color: COLOR_LIST[cats[ci].items.length % COLOR_LIST.length] }] }; setB({ ...b, expenses: cats }) }}
-                style={{ marginLeft: 12, ...btnCss('#252535', false), color: '#636385', fontSize: 11 }}>+ item</button>
-            </div>
-          ))}
-          <button onClick={() => setB({ ...b, expenses: [...b.expenses, { id: `c${Date.now()}`, label: 'Catégorie', items: [] }] })}
-            style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385' }}>+ Catégorie</button>
-        </div>
-      )}
-
-      {tab === 'savings' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {b.savings.map((sav, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8 }}>
-              <input value={sav.label} onChange={e => { const n = [...b.savings]; n[i] = { ...n[i], label: e.target.value }; setB({ ...b, savings: n }) }} style={{ ...inputCss, flex: 1 }} />
-              <input type="number" value={sav.amount || ''} onChange={e => { const n = [...b.savings]; n[i] = { ...n[i], amount: parseFloat(e.target.value) || 0 }; setB({ ...b, savings: n }) }} style={{ ...inputCss, width: 110 }} placeholder="€" />
-              <button onClick={() => setB({ ...b, savings: b.savings.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => setB({ ...b, savings: [...b.savings, { id: `s${Date.now()}`, label: 'Épargne', amount: 0, color: COLOR_LIST[b.savings.length % COLOR_LIST.length] }] })}
-            style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385', marginTop: 4 }}>+ Ajouter</button>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-        <button onClick={onCancel} style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385' }}>Annuler</button>
-        <button onClick={() => onSave(b)} style={btnCss()}>Enregistrer</button>
-      </div>
-    </div>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FluxPage() {
   const { budget, monthPlans, compte, saveBudget, loading } = useAppData()
-  const [showEdit, setShowEdit] = useState(false)
   const curKey = currentMonthKey()
   const resolved = useMemo(() => resolveBudget(budget, monthPlans, curKey), [budget, monthPlans, curKey])
 
   const totalIncome  = resolved.incomes.reduce((s, i) => s + i.amount, 0)
   const totalExpense = resolved.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
   const totalSaving  = resolved.savings.reduce((s, i) => s + i.amount, 0)
-  const surplus = totalIncome - totalExpense - totalSaving
-  const savingRate = totalIncome > 0 ? ((totalSaving + Math.max(surplus, 0)) / totalIncome) * 100 : 0
+  const surplus      = totalIncome - totalExpense - totalSaving
+  const savingRate   = totalIncome > 0 ? ((totalSaving + Math.max(surplus, 0)) / totalIncome) * 100 : 0
 
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
   const kpis = [
-    { label: 'Revenus',       val: fmt(totalIncome),  color: 'oklch(65% 0.18 148)', icon: '↑' },
-    { label: 'Dépenses',      val: fmt(totalExpense), color: 'oklch(62% 0.20 25)',  icon: '↓' },
-    { label: 'Épargne',       val: fmt(totalSaving),  color: 'oklch(63% 0.19 250)', icon: '○' },
-    { label: 'Surplus',       val: fmt(surplus),      color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '+' },
+    { label: 'Revenus',        val: fmt(totalIncome),           color: 'oklch(65% 0.18 148)', icon: '↑' },
+    { label: 'Dépenses',       val: fmt(totalExpense),          color: 'oklch(62% 0.20 25)',  icon: '↓' },
+    { label: 'Épargne',        val: fmt(totalSaving),           color: 'oklch(63% 0.19 250)', icon: '○' },
+    { label: 'Surplus',        val: fmt(surplus),               color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '+' },
     { label: "Taux d'épargne", val: savingRate.toFixed(1) + '%', color: 'oklch(78% 0.16 80)', icon: '◎' },
   ]
 
@@ -316,12 +361,9 @@ export default function FluxPage() {
     <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f2', margin: 0 }}>Flux budgétaires</h1>
-          <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Visualisez et modifiez vos flux d&apos;argent</p>
-        </div>
-        <button onClick={() => setShowEdit(e => !e)} style={btnCss()}>{showEdit ? '✕ Fermer' : '✏ Modifier budget'}</button>
+      <div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f2', margin: 0 }}>Flux budgétaires</h1>
+        <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Visualisez et modifiez vos flux d&apos;argent</p>
       </div>
 
       {/* KPIs */}
@@ -339,25 +381,22 @@ export default function FluxPage() {
         ))}
       </div>
 
-      {/* Edit panel */}
-      {showEdit && <EditPanel budget={budget} onSave={async b => { await saveBudget(b); setShowEdit(false) }} onCancel={() => setShowEdit(false)} />}
-
-      {/* Main: Sankey + Budget panel side by side */}
-      {totalIncome > 0 && !showEdit && (
+      {/* Sankey + Budget panel */}
+      {totalIncome > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
           <div style={cardCss}>
             <SankeyDiagram budget={resolved} />
           </div>
-          <BudgetPanel budget={resolved} onEdit={() => setShowEdit(true)} />
+          <BudgetPanel budget={budget} onSave={saveBudget} />
         </div>
       )}
 
-      {totalIncome === 0 && !showEdit && (
+      {totalIncome === 0 && (
         <div style={{ ...cardCss, textAlign: 'center', padding: 40 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
           <div style={{ color: '#e8e8f2', fontWeight: 600, marginBottom: 8 }}>Aucun budget configuré</div>
-          <div style={{ color: '#636385', fontSize: 13, marginBottom: 20 }}>Ajoutez vos revenus et dépenses pour voir votre flux financier.</div>
-          <button onClick={() => setShowEdit(true)} style={btnCss()}>Configurer mon budget</button>
+          <div style={{ color: '#636385', fontSize: 13, marginBottom: 20 }}>Utilisez le panneau de droite pour ajouter vos revenus et dépenses.</div>
+          <BudgetPanel budget={budget} onSave={saveBudget} />
         </div>
       )}
 
