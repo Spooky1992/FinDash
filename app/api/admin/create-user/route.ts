@@ -10,10 +10,18 @@ export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Seul le compte défini dans ADMIN_EMAIL peut créer d'autres comptes
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (!adminEmail) return NextResponse.json({ error: 'Account creation is disabled' }, { status: 403 })
+  if (session.user.email !== adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const { email, password } = await req.json()
   if (!email || !password || password.length < 6) {
     return NextResponse.json({ error: 'Email et mot de passe requis (min 6 caractères)' }, { status: 400 })
   }
+
+  const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  if (!EMAIL_RE.test(email)) return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
 
   const db = getDb()
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
