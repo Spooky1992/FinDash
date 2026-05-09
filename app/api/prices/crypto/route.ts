@@ -11,6 +11,10 @@ export async function GET(req: Request) {
 
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
+  const VALID_COIN_ID = /^[a-z0-9-]{2,50}$/
+  if (!VALID_COIN_ID.test(id))
+    return NextResponse.json({ error: 'Invalid coin id' }, { status: 400 })
+
   try {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=eur`
     const res = await fetch(url, { next: { revalidate: 60 } })

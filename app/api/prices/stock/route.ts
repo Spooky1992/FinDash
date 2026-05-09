@@ -34,6 +34,17 @@ export async function GET(req: Request) {
 
   if (!ticker) return NextResponse.json({ error: 'Missing ticker' }, { status: 400 })
 
+  const VALID_TICKER  = /^[A-Z0-9=^._%-]{1,15}$/i
+  const VALID_RANGES  = new Set(['1d','5d','1mo','3mo','6mo','1y','5y','max'])
+  const VALID_INTERVALS = new Set(['1m','5m','15m','30m','60m','90m','1h','1d','5d','1wk','1mo'])
+
+  if (!VALID_TICKER.test(ticker))
+    return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 })
+  if (!VALID_RANGES.has(range))
+    return NextResponse.json({ error: 'Invalid range' }, { status: 400 })
+  if (!VALID_INTERVALS.has(interval))
+    return NextResponse.json({ error: 'Invalid interval' }, { status: 400 })
+
   try {
     const result = await fetchYahoo(ticker, range, interval)
     if (!result) return NextResponse.json({ error: 'Ticker non trouvé' }, { status: 404 })

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { compte, compteHistorique } from '@/lib/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 
 export async function GET() {
   const session = await auth()
@@ -81,8 +81,10 @@ export async function DELETE(req: Request) {
 
   const db = getDb()
   const { key } = await req.json()
+  if (!key || typeof key !== 'string') return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+
   await db.delete(compteHistorique)
-    .where(eq(compteHistorique.key, key))
+    .where(and(eq(compteHistorique.key, key), eq(compteHistorique.userId, userId)))
 
   return NextResponse.json({ ok: true })
 }
