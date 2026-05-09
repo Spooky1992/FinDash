@@ -177,17 +177,17 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
-function PositionRow({ p, liveRaw, liveCurrency, eurUsd, color, selected, onSelect }: {
+function PositionRow({ p, liveRaw, liveCurrency, usdToEur, color, selected, onSelect }: {
   p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD'; purchaseEurUsd?: number }
-  liveRaw: number; liveCurrency: string; eurUsd: number; color: string; selected: boolean; onSelect: () => void
+  liveRaw: number; liveCurrency: string; usdToEur: number; color: string; selected: boolean; onSelect: () => void
 }) {
-  // Conversion prix live selon la devise retournée par Yahoo
+  // Conversion prix live selon la devise retournée par Yahoo (usdToEur = EUR=X = EUR pour 1 USD)
   const liveEur = liveCurrency === 'EUR' ? liveRaw
-    : liveCurrency === 'GBp' || liveCurrency === 'GBX' ? liveRaw / 100 / (eurUsd * 0.856) // pence → GBP → EUR approx
-    : liveRaw / eurUsd // USD → EUR
-  // PRU : converti en EUR selon la devise et le taux historique si disponible
-  const purchaseRate = p.currency === 'USD' ? (p.purchaseEurUsd ?? eurUsd) : eurUsd
-  const cpuEur = p.currency === 'USD' ? p.costPerUnit / purchaseRate : p.costPerUnit
+    : liveCurrency === 'GBp' || liveCurrency === 'GBX' ? liveRaw * usdToEur / 100 * 1.17
+    : liveRaw * usdToEur // USD × (EUR/USD) = EUR
+  // PRU : taux historique si disponible, sinon taux actuel
+  const purchaseRate = p.currency === 'USD' ? (p.purchaseEurUsd ?? usdToEur) : 1
+  const cpuEur = p.currency === 'USD' ? p.costPerUnit * purchaseRate : p.costPerUnit
 
   const value = p.quantity * liveEur
   const cost  = p.quantity * cpuEur
@@ -232,7 +232,7 @@ export default function InvestissementsPage() {
   const [loadingPrices, setLoading] = useState(false)
   const [paused, setPaused]         = useState(false)
   const [elapsed, setElapsed]       = useState(0)
-  const [eurUsd, setEurUsd]         = useState<number | null>(null)
+  const [usdToEur, setUsdToEur]     = useState<number>(0.88) // EUR=X Yahoo = combien d'EUR pour 1 USD
   const [selected, setSelected]     = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
@@ -248,7 +248,7 @@ export default function InvestissementsPage() {
         try { const id = KNOWN_COINS[p.ticker.replace('-EUR','').toUpperCase()] ?? p.ticker.toLowerCase(); const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = 'EUR' } } catch {}
       }),
       (async () => {
-        try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setEurUsd(d.price) } catch {} // EUR=X = combien de USD pour 1 EUR
+        try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setUsdToEur(d.price) } catch {}
       })(),
     ])
     setPrices(newPrices); setLiveCurrencies(newCurrencies); setLoading(false)
@@ -260,19 +260,17 @@ export default function InvestissementsPage() {
 
   const peaPositions    = portfolio.pea.positions
   const cryptoPositions = portfolio.crypto.positions
-  const rate = eurUsd ?? 1.1
-
   function liveEur(p: typeof peaPositions[0]) {
     const raw = prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit
     const cur = liveCurrencies[p.ticker] ?? 'USD'
     if (cur === 'EUR') return raw
-    if (cur === 'GBp' || cur === 'GBX') return raw / 100 / (rate * 0.856)
-    return raw / rate // USD
+    if (cur === 'GBp' || cur === 'GBX') return raw * usdToEur / 100 * 1.17
+    return raw * usdToEur // USD × (EUR/USD) = EUR
   }
   function cpuEur(p: typeof peaPositions[0]) {
     if ((p as { currency?: string }).currency !== 'USD') return p.costPerUnit
-    const purchaseRate = (p as { purchaseEurUsd?: number }).purchaseEurUsd ?? rate
-    return p.costPerUnit / purchaseRate
+    const purchaseRate = (p as { purchaseEurUsd?: number }).purchaseEurUsd ?? usdToEur
+    return p.costPerUnit * purchaseRate // USD × (EUR/USD) = EUR
   }
 
   const peaValue    = peaPositions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
@@ -302,12 +300,10 @@ export default function InvestissementsPage() {
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: loadingPrices ? 'oklch(68% 0.17 55)' : 'oklch(65% 0.18 148)', boxShadow: loadingPrices ? 'none' : '0 0 6px oklch(65% 0.18 148)', transition: 'background 0.3s' }} />
           <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>Crypto live (CoinGecko)</span>
         </div>
-        {eurUsd && (
-          <span style={{ fontSize: 12, color: '#636385' }}>
-            EUR/USD : <span style={{ color: '#e8e8f2', fontWeight: 600 }}>{eurUsd.toFixed(4)}</span>
-            <span style={{ fontSize: 11 }}> • 1 $ = {(1 / eurUsd).toFixed(4)} €</span>
-          </span>
-        )}
+        <span style={{ fontSize: 12, color: '#636385' }}>
+          1 $ = <span style={{ color: '#e8e8f2', fontWeight: 600 }}>{usdToEur.toFixed(4)} €</span>
+          <span style={{ fontSize: 11 }}> • 1 € = {(1 / usdToEur).toFixed(4)} $</span>
+        </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           {loadingPrices
             ? <span style={{ fontSize: 11, color: '#636385' }}>Mise à jour…</span>
@@ -365,7 +361,7 @@ export default function InvestissementsPage() {
                   key={p.id} p={p}
                   liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
                   liveCurrency={liveCurrencies[p.ticker] ?? 'USD'}
-                  eurUsd={rate}
+                  usdToEur={usdToEur}
                   color={CAT_COLOR_PEA}
                   selected={selected === p.id}
                   onSelect={() => setSelected(s => s === p.id ? null : p.id)}
@@ -411,7 +407,7 @@ export default function InvestissementsPage() {
                   key={p.id} p={p}
                   liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
                   liveCurrency={liveCurrencies[p.ticker] ?? 'EUR'}
-                  eurUsd={rate}
+                  usdToEur={usdToEur}
                   color={CAT_COLOR_CRYPTO}
                   selected={selected === p.id}
                   onSelect={() => setSelected(s => s === p.id ? null : p.id)}

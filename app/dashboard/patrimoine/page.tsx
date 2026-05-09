@@ -85,7 +85,7 @@ export default function PatrimoinePage() {
   const [tab, setTab] = useState<Tab>('pea')
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
-  const [eurUsd, setEurUsd] = useState<number>(1.1) // taux EUR/USD (1 EUR = X USD)
+  const [usdToEur, setUsdToEur] = useState<number>(0.88) // EUR=X sur Yahoo = combien d'EUR pour 1 USD
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<Partial<Position & Livret & Immo> & { _type?: Tab; currency?: 'EUR' | 'USD' }>({})
@@ -100,7 +100,7 @@ export default function PatrimoinePage() {
       try {
         const r = await fetch('/api/prices/stock?ticker=EUR%3DX')
         const d = await r.json()
-        if (d.price) setEurUsd(d.price) // EUR=X = combien de USD pour 1 EUR
+        if (d.price) setUsdToEur(d.price) // EUR=X = combien d'EUR pour 1 USD
       } catch {}
       await Promise.all([
         ...portfolio.pea.positions.map(async p => {
@@ -177,13 +177,14 @@ export default function PatrimoinePage() {
     const raw = prices[p.ticker] ?? p.price ?? p.costPerUnit
     const cur = liveCurrencies[p.ticker]
     if (!cur || cur === 'EUR') return raw
-    if (cur === 'GBp' || cur === 'GBX') return raw / 100 / (eurUsd * 0.856)
-    return raw / eurUsd // USD
+    if (cur === 'GBp' || cur === 'GBX') return raw * usdToEur / 100 * 1.17 // pence → GBP → EUR
+    return raw * usdToEur // USD → EUR
   }
   function costEur(p: Position) {
     if (p.currency !== 'USD') return p.costPerUnit
-    const rate = p.purchaseEurUsd ?? eurUsd
-    return p.costPerUnit / rate
+    // purchaseEurUsd stocké = valeur de EUR=X au jour d'achat = combien d'EUR pour 1 USD
+    const rate = p.purchaseEurUsd ?? usdToEur
+    return p.costPerUnit * rate // USD × (EUR/USD) = EUR
   }
 
   const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
@@ -508,10 +509,10 @@ export default function PatrimoinePage() {
                 </div>
                 <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} />
                 {editItem.currency === 'USD' && (editItem as Position).costPerUnit > 0 && (() => {
-                  const rate = (editItem as Position).purchaseEurUsd ?? eurUsd
+                  const rate = (editItem as Position).purchaseEurUsd ?? usdToEur
                   return (
                     <div style={{ fontSize: 11, color: '#636385', marginTop: 5 }}>
-                      ≈ {fmt((editItem as Position).costPerUnit / rate)} au taux 1 USD = {(1 / rate).toFixed(4)} €
+                      ≈ {fmt((editItem as Position).costPerUnit * rate)} au taux 1 USD = {rate.toFixed(4)} €
                       {(editItem as Position).purchaseEurUsd && <span style={{ color: 'oklch(65% 0.18 148)', marginLeft: 6 }}>taux historique</span>}
                     </div>
                   )
@@ -524,7 +525,7 @@ export default function PatrimoinePage() {
                     <label style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>Date d&apos;achat</label>
                     {(editItem as Position).purchaseEurUsd && (
                       <span style={{ fontSize: 11, color: 'oklch(65% 0.18 148)' }}>
-                        1 EUR = {((editItem as Position).purchaseEurUsd!).toFixed(4)} USD ce jour-là
+                        1 USD = {((editItem as Position).purchaseEurUsd!).toFixed(4)} € ce jour-là
                       </span>
                     )}
                   </div>
