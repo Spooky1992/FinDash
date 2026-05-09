@@ -84,6 +84,7 @@ export default function PatrimoinePage() {
   const { portfolio, budget, savePortfolio, loading } = useAppData()
   const [tab, setTab] = useState<Tab>('pea')
   const [prices, setPrices] = useState<Record<string, number>>({})
+  const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
   const [eurUsd, setEurUsd] = useState<number>(1.1) // taux EUR/USD (1 EUR = X USD)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -95,17 +96,22 @@ export default function PatrimoinePage() {
     const fetchAll = async () => {
       setLoadingPrices(true)
       const newPrices: Record<string, number> = {}
-      // Fetch taux EUR/USD
+      const newCurrencies: Record<string, string> = {}
       try {
         const r = await fetch('/api/prices/stock?ticker=EUR%3DX')
         const d = await r.json()
-        if (d.price) setEurUsd(1 / d.price) // EUR=X donne USD/EUR, on veut EUR/USD
+        if (d.price) setEurUsd(d.price) // EUR=X = combien de USD pour 1 EUR
       } catch {}
       await Promise.all([
-        ...portfolio.pea.positions.map(async p => { const price = await fetchStockPrice(p.ticker); if (price) newPrices[p.ticker] = price }),
-        ...portfolio.crypto.positions.map(async p => { const id = KNOWN_COINS[p.ticker.toUpperCase()] ?? p.ticker.toLowerCase(); const price = await fetchCryptoPrice(id); if (price) newPrices[p.ticker] = price }),
+        ...portfolio.pea.positions.map(async p => {
+          try { const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(p.ticker)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = d.currency ?? 'USD' } } catch {}
+        }),
+        ...portfolio.crypto.positions.map(async p => {
+          const id = KNOWN_COINS[p.ticker.toUpperCase()] ?? p.ticker.toLowerCase()
+          try { const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = 'EUR' } } catch {}
+        }),
       ])
-      setPrices(newPrices)
+      setPrices(newPrices); setLiveCurrencies(newCurrencies)
       setLoadingPrices(false)
     }
     fetchAll()
@@ -169,11 +175,10 @@ export default function PatrimoinePage() {
   // Pour les tickers USD natifs, on convertit via eurUsd
   function liveEur(p: Position) {
     const raw = prices[p.ticker] ?? p.price ?? p.costPerUnit
-    // Si le ticker se termine par -EUR ou .PA/.AS, le prix est en EUR
-    const isEurTicker = p.ticker.endsWith('-EUR') || p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS')
-    if (isEurTicker) return raw
-    // Sinon le prix live est en USD (Yahoo retourne en USD pour LUNR etc.)
-    return raw / eurUsd
+    const cur = liveCurrencies[p.ticker]
+    if (!cur || cur === 'EUR') return raw
+    if (cur === 'GBp' || cur === 'GBX') return raw / 100 / (eurUsd * 0.856)
+    return raw / eurUsd // USD
   }
   function costEur(p: Position) {
     if (p.currency !== 'USD') return p.costPerUnit

@@ -177,13 +177,14 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
-function PositionRow({ p, liveRaw, eurUsd, color, selected, onSelect }: {
+function PositionRow({ p, liveRaw, liveCurrency, eurUsd, color, selected, onSelect }: {
   p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD'; purchaseEurUsd?: number }
-  liveRaw: number; eurUsd: number; color: string; selected: boolean; onSelect: () => void
+  liveRaw: number; liveCurrency: string; eurUsd: number; color: string; selected: boolean; onSelect: () => void
 }) {
-  // Prix live : Yahoo retourne USD pour tickers US, EUR pour .PA/.AS/-EUR
-  const isEurTicker = p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS') || p.ticker.endsWith('-EUR')
-  const liveEur = isEurTicker ? liveRaw : liveRaw / eurUsd
+  // Conversion prix live selon la devise retournée par Yahoo
+  const liveEur = liveCurrency === 'EUR' ? liveRaw
+    : liveCurrency === 'GBp' || liveCurrency === 'GBX' ? liveRaw / 100 / (eurUsd * 0.856) // pence → GBP → EUR approx
+    : liveRaw / eurUsd // USD → EUR
   // PRU : converti en EUR selon la devise et le taux historique si disponible
   const purchaseRate = p.currency === 'USD' ? (p.purchaseEurUsd ?? eurUsd) : eurUsd
   const cpuEur = p.currency === 'USD' ? p.costPerUnit / purchaseRate : p.costPerUnit
@@ -227,6 +228,7 @@ function PositionRow({ p, liveRaw, eurUsd, color, selected, onSelect }: {
 export default function InvestissementsPage() {
   const { portfolio, loading } = useAppData()
   const [prices, setPrices]         = useState<Record<string, number>>({})
+  const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
   const [loadingPrices, setLoading] = useState(false)
   const [paused, setPaused]         = useState(false)
   const [elapsed, setElapsed]       = useState(0)
@@ -237,18 +239,19 @@ export default function InvestissementsPage() {
     if (loading) return
     setLoading(true); setElapsed(0)
     const newPrices: Record<string, number> = {}
+    const newCurrencies: Record<string, string> = {}
     await Promise.all([
       ...portfolio.pea.positions.map(async p => {
-        try { const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(p.ticker)}`); const d = await r.json(); if (d.price) newPrices[p.ticker] = d.price } catch {}
+        try { const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(p.ticker)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = d.currency ?? 'USD' } } catch {}
       }),
       ...portfolio.crypto.positions.map(async p => {
-        try { const id = KNOWN_COINS[p.ticker.replace('-EUR','').toUpperCase()] ?? p.ticker.toLowerCase(); const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`); const d = await r.json(); if (d.price) newPrices[p.ticker] = d.price } catch {}
+        try { const id = KNOWN_COINS[p.ticker.replace('-EUR','').toUpperCase()] ?? p.ticker.toLowerCase(); const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = 'EUR' } } catch {}
       }),
       (async () => {
-        try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setEurUsd(1 / d.price) } catch {}
+        try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setEurUsd(d.price) } catch {} // EUR=X = combien de USD pour 1 EUR
       })(),
     ])
-    setPrices(newPrices); setLoading(false)
+    setPrices(newPrices); setLiveCurrencies(newCurrencies); setLoading(false)
   }, [loading, portfolio.pea.positions, portfolio.crypto.positions])
 
   useEffect(() => { fetchAll() }, [fetchAll])
@@ -261,8 +264,10 @@ export default function InvestissementsPage() {
 
   function liveEur(p: typeof peaPositions[0]) {
     const raw = prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit
-    const isEurTicker = p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS') || p.ticker.endsWith('-EUR')
-    return isEurTicker ? raw : raw / rate
+    const cur = liveCurrencies[p.ticker] ?? 'USD'
+    if (cur === 'EUR') return raw
+    if (cur === 'GBp' || cur === 'GBX') return raw / 100 / (rate * 0.856)
+    return raw / rate // USD
   }
   function cpuEur(p: typeof peaPositions[0]) {
     if ((p as { currency?: string }).currency !== 'USD') return p.costPerUnit
@@ -359,6 +364,7 @@ export default function InvestissementsPage() {
                 <PositionRow
                   key={p.id} p={p}
                   liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                  liveCurrency={liveCurrencies[p.ticker] ?? 'USD'}
                   eurUsd={rate}
                   color={CAT_COLOR_PEA}
                   selected={selected === p.id}
@@ -404,6 +410,7 @@ export default function InvestissementsPage() {
                 <PositionRow
                   key={p.id} p={p}
                   liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                  liveCurrency={liveCurrencies[p.ticker] ?? 'EUR'}
                   eurUsd={rate}
                   color={CAT_COLOR_CRYPTO}
                   selected={selected === p.id}
