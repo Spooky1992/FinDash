@@ -95,8 +95,8 @@ function CoursChart({ data }: { data: ChartData }) {
           onMouseLeave={() => setHoveredIdx(null)}
           onMouseMove={e => {
             const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
-            const xRatio = (e.clientX - rect.left) / rect.width
-            const idx = Math.round(xRatio * (prices.length - 1))
+            const svgX = ((e.clientX - rect.left) / rect.width) * W
+            const idx = Math.round((svgX - padX) / (W - padX * 2) * (prices.length - 1))
             setHoveredIdx(Math.max(0, Math.min(prices.length - 1, idx)))
           }}>
           <defs>

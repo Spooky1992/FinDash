@@ -1,7 +1,7 @@
 'use client'
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useAppData } from '@/hooks/useAppData'
-import { fmt, fmtPct, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, cardCss } from '@/lib/utils'
+import { fmt, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, cardCss } from '@/lib/utils'
 import { Treemap, TreemapLegend, type TreemapItem } from '@/components/Treemap'
 
 function VerticalBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
@@ -28,27 +28,90 @@ function VerticalBarChart({ data }: { data: { label: string; value: number; colo
   )
 }
 
-function LineChart({ points, color = 'oklch(63% 0.19 250)' }: { points: number[]; color?: string }) {
+function ProjectionChart({ points, labels, color = 'oklch(63% 0.19 250)' }: {
+  points: number[]
+  labels: string[]
+  color?: string
+}) {
+  const [hovIdx, setHovIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   if (points.length < 2) return null
+
+  const W = 500, H = 140, padL = 52, padR = 12, padT = 14, padB = 28
   const min = Math.min(...points), max = Math.max(...points)
   const range = max - min || 1
-  const W = 300, H = 80, pad = 10
-  const px = (i: number) => pad + (i / (points.length - 1)) * (W - pad * 2)
-  const py = (v: number) => H - pad - ((v - min) / range) * (H - pad * 2)
-  const path = points.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i)},${py(v)}`).join(' ')
-  const area = `${path} L${px(points.length - 1)},${H} L${px(0)},${H}Z`
+
+  const px = (i: number) => padL + (i / (points.length - 1)) * (W - padL - padR)
+  const py = (v: number) => padT + ((max - v) / range) * (H - padT - padB)
+
+  const path = points.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')
+  const area = `${path} L${px(points.length - 1).toFixed(1)},${H - padB} L${px(0).toFixed(1)},${H - padB}Z`
+
+  const yTicks = 3
+  const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => min + (i / yTicks) * range)
+
+  const hov = hovIdx !== null ? { val: points[hovIdx], label: labels[hovIdx] } : null
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 80 }}>
-      <defs>
-        <linearGradient id="lg-synth" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#lg-synth)" />
-      <path d={path} stroke={color} strokeWidth={2} fill="none" />
-    </svg>
+    <div>
+      {/* Tooltip */}
+      <div style={{ display: 'flex', gap: 20, marginBottom: 10, minHeight: 36, alignItems: 'center' }}>
+        {hov ? (
+          <>
+            <div>
+              <div style={{ fontSize: 10, color: '#636385', marginBottom: 1 }}>Mois</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2' }}>{hov.label}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#636385', marginBottom: 1 }}>Solde prévu</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmt(hov.val)}</div>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: '#636385' }}>Survolez le graphe pour voir le détail</div>
+        )}
+      </div>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block', cursor: 'crosshair' }}
+        onMouseLeave={() => setHovIdx(null)}
+        onMouseMove={e => {
+          const rect = svgRef.current?.getBoundingClientRect()
+          if (!rect) return
+          const svgX = ((e.clientX - rect.left) / rect.width) * W
+          const idx = Math.round((svgX - padL) / (W - padL - padR) * (points.length - 1))
+          setHovIdx(Math.max(0, Math.min(points.length - 1, idx)))
+        }}>
+        <defs>
+          <linearGradient id="lg-synth" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {/* Gridlines + Y labels */}
+        {yLabels.map((v, i) => (
+          <g key={i}>
+            <line x1={padL} y1={py(v)} x2={W - padR} y2={py(v)} stroke="#1c1c27" strokeWidth={1} />
+            <text x={padL - 5} y={py(v) + 4} textAnchor="end" fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">
+              {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : Math.round(v)}€
+            </text>
+          </g>
+        ))}
+        <path d={area} fill="url(#lg-synth)" />
+        <path d={path} stroke={color} strokeWidth={2} fill="none" strokeLinejoin="round" />
+        {/* Dots + X labels */}
+        {points.map((v, i) => (
+          <g key={i}>
+            <circle cx={px(i)} cy={py(v)} r={hovIdx === i ? 4.5 : 2.5} fill={color} opacity={hovIdx === i ? 1 : 0.5} />
+            <text x={px(i)} y={H - padB + 14} textAnchor="middle" fontSize={8} fill={hovIdx === i ? '#e8e8f2' : '#636385'} fontFamily="Inter, sans-serif">
+              {labels[i].slice(0, 3)}
+            </text>
+          </g>
+        ))}
+        {/* Crosshair */}
+        {hovIdx !== null && (
+          <line x1={px(hovIdx)} y1={padT} x2={px(hovIdx)} y2={H - padB} stroke="#636385" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+        )}
+      </svg>
+    </div>
   )
 }
 
@@ -78,13 +141,17 @@ export default function SynthesePage() {
     value: cat.items.reduce((s, i) => s + i.amount, 0),
   })).filter(x => x.value > 0).sort((a, b) => b.value - a.value)
 
-  // Projection solde (6 mois)
-  const projPoints = useMemo(() => {
+  // Projection solde (7 points : solde actuel + 6 mois)
+  const { projPoints, projLabels } = useMemo(() => {
     let s = compte.solde
-    return Array.from({ length: 6 }, (_, i) => {
+    const pts = [s]
+    const lbls = ['Auj.']
+    for (let i = 0; i < 6; i++) {
       s += calcSurplus(resolveBudget(budget, monthPlans, addMonths(curKey, i)))
-      return s
-    })
+      pts.push(s)
+      lbls.push(monthLabel(addMonths(curKey, i)))
+    }
+    return { projPoints: pts, projLabels: lbls }
   }, [budget, monthPlans, curKey, compte.solde])
 
   // Transactions récentes (30 derniers jours)
@@ -139,19 +206,11 @@ export default function SynthesePage() {
 
         {/* Projection */}
         <div style={cardCss}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Projection solde</span>
-            <span style={{ fontSize: 12, color: 'oklch(65% 0.18 148)', fontWeight: 600 }}>{fmt(projPoints[projPoints.length - 1])}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Projection solde — 6 mois</span>
+            <span style={{ fontSize: 13, color: 'oklch(65% 0.18 148)', fontWeight: 700 }}>{fmt(projPoints[projPoints.length - 1])}</span>
           </div>
-          <LineChart points={[compte.solde, ...projPoints]} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-            {projPoints.slice(0, 3).map((v, i) => (
-              <div key={i} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: '#636385' }}>{monthLabel(addMonths(curKey, i + 1)).slice(0, 3)}</div>
-                <div style={{ fontSize: 11, color: '#e8e8f2', fontWeight: 600 }}>{fmt(v)}</div>
-              </div>
-            ))}
-          </div>
+          <ProjectionChart points={projPoints} labels={projLabels} />
         </div>
       </div>
 

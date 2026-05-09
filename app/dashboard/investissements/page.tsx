@@ -132,8 +132,9 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
           onMouseMove={e => {
             const rect = svgRef.current?.getBoundingClientRect()
             if (!rect) return
-            const xRatio = (e.clientX - rect.left) / rect.width
-            setHovIdx(Math.max(0, Math.min(prices.length - 1, Math.round(xRatio * (prices.length - 1)))))
+            const svgX = ((e.clientX - rect.left) / rect.width) * W
+            const idx = Math.round((svgX - padX) / (W - padX * 2) * (prices.length - 1))
+            setHovIdx(Math.max(0, Math.min(prices.length - 1, idx)))
           }}>
           <defs>
             <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">

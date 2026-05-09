@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppData } from '@/hooks/useAppData'
 import { fmt, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, COLOR_LIST, cardCss, inputCss } from '@/lib/utils'
-import type { Budget, MonthPlan } from '@/lib/types'
+import type { Budget } from '@/lib/types'
 
 // ── Sankey ────────────────────────────────────────────────────────────────────
 interface SNode { id: string; label: string; val: number; color: string; x: number; y: number; h: number; layer: number }
@@ -304,40 +304,9 @@ function BudgetPanel({ budget, onSave }: { budget: Budget; onSave: (b: Budget) =
   )
 }
 
-// ── Month grid ────────────────────────────────────────────────────────────────
-function MonthGrid({ budget, monthPlans, solde }: { budget: Budget; monthPlans: Record<string, MonthPlan>; solde: number }) {
-  const curKey = currentMonthKey()
-  let running = solde
-  const months = Array.from({ length: 6 }, (_, i) => addMonths(curKey, i - 2))
-  for (let i = -2; i < 0; i++) running -= calcSurplus(resolveBudget(budget, monthPlans, addMonths(curKey, i)))
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-      {months.map(key => {
-        const b  = resolveBudget(budget, monthPlans, key)
-        const s  = calcSurplus(b)
-        const before = running
-        running += s
-        const isCur = key === curKey
-        return (
-          <div key={key} style={{ ...cardCss, padding: '14px 16px', border: `1px solid ${isCur ? 'oklch(63% 0.19 250 / 0.5)' : '#252535'}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: isCur ? 'oklch(63% 0.19 250)' : '#636385', fontWeight: isCur ? 600 : 400 }}>{monthLabel(key)}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: s >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{s >= 0 ? '+' : ''}{fmt(s)}</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#636385', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Solde prévu</span><span style={{ color: '#e8e8f2' }}>{fmt(before + s)}</span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FluxPage() {
-  const { budget, monthPlans, compte, saveBudget, loading } = useAppData()
+  const { budget, monthPlans, saveBudget, loading } = useAppData()
   const curKey = currentMonthKey()
   const resolved = useMemo(() => resolveBudget(budget, monthPlans, curKey), [budget, monthPlans, curKey])
 
@@ -400,11 +369,6 @@ export default function FluxPage() {
         </div>
       )}
 
-      {/* Vue mensuelle */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Vue mensuelle</div>
-        <MonthGrid budget={budget} monthPlans={monthPlans} solde={compte.solde} />
-      </div>
     </div>
   )
 }

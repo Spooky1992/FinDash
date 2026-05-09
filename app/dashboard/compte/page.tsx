@@ -71,8 +71,9 @@ function ProjectionChart({ solde, surplus, budget, monthPlans }: {
         onMouseMove={e => {
           const rect = svgRef.current?.getBoundingClientRect()
           if (!rect) return
-          const xRatio = (e.clientX - rect.left) / rect.width
-          setHovIdx(Math.max(0, Math.min(allPoints.length - 1, Math.round(xRatio * (allPoints.length - 1)))))
+          const svgX = ((e.clientX - rect.left) / rect.width) * W
+          const idx = Math.round((svgX - padL) / (W - padL - padR) * (allPoints.length - 1))
+          setHovIdx(Math.max(0, Math.min(allPoints.length - 1, idx)))
         }}>
         <defs>
           <linearGradient id="proj-grad" x1="0" y1="0" x2="0" y2="1">
