@@ -26,7 +26,6 @@ function LoanCalc() {
     })
   })()
 
-  const maxBar = monthly
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -55,19 +54,35 @@ function LoanCalc() {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: '#636385', marginTop: 4 }}>Tableau d&apos;amortissement (5 premières années)</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {schedule.filter((_, i) => i % 12 === 0 || i < 6).slice(0, 12).map(row => (
-          <div key={row.month} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: '#636385', width: 45, flexShrink: 0 }}>M{row.month}</span>
-            <div style={{ flex: 1, height: 16, background: '#1c1c27', borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
-              <div style={{ width: `${(row.principal / maxBar) * 100}%`, background: 'oklch(65% 0.18 148)', height: '100%' }} />
-              <div style={{ width: `${(row.interest / maxBar) * 100}%`, background: 'oklch(62% 0.20 25)', height: '100%' }} />
-            </div>
-            <span style={{ fontSize: 10, color: '#636385', width: 80, textAlign: 'right', flexShrink: 0 }}>Reste: {fmt(row.remain)}</span>
-          </div>
-        ))}
-      </div>
+      <div style={{ fontSize: 12, color: '#636385', marginTop: 4 }}>Amortissement — Capital vs Intérêts (60 premiers mois)</div>
+      {(() => {
+        const rows = schedule.slice(0, 60)
+        const W = 600, H = 160, padL = 8, padR = 8, padT = 12, padB = 24
+        const barW = Math.floor((W - padL - padR) / rows.length) - 2
+        const maxVal = monthly
+        const usableH = H - padT - padB
+        return (
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+            {[0, 0.25, 0.5, 0.75, 1].map(f => {
+              const y = padT + (1 - f) * usableH
+              return <line key={f} x1={padL} y1={y} x2={W - padR} y2={y} stroke="#1c1c27" strokeWidth={1} />
+            })}
+            {rows.map((row, i) => {
+              const x = padL + i * (barW + 2)
+              const hPrincipal = (row.principal / maxVal) * usableH
+              const hInterest  = (row.interest  / maxVal) * usableH
+              const showLabel  = i % 12 === 0
+              return (
+                <g key={row.month}>
+                  <rect x={x} y={padT + usableH - hPrincipal - hInterest} width={barW / 2} height={hPrincipal} rx={1} fill="oklch(65% 0.18 148)" fillOpacity={0.85} />
+                  <rect x={x + barW / 2} y={padT + usableH - hInterest} width={barW / 2} height={hInterest} rx={1} fill="oklch(62% 0.20 25)" fillOpacity={0.85} />
+                  {showLabel && <text x={x + barW / 2} y={H - 6} textAnchor="middle" fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">M{row.month}</text>}
+                </g>
+              )
+            })}
+          </svg>
+        )
+      })()}
       <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.18 148)', display: 'inline-block', borderRadius: 2 }} />Capital</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(62% 0.20 25)', display: 'inline-block', borderRadius: 2 }} />Intérêts</span>
@@ -89,13 +104,7 @@ function CompoundCalc() {
 
   const last = points[points.length - 1]
   const gain = last.total - last.invested
-  const W = 400, H = 120
   const maxVal = last.total
-  const px = (i: number) => (i / f.years) * W
-  const py = (v: number) => H - (v / maxVal) * H
-
-  const totalPath  = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${px(i)},${py(p.total)}`).join(' ')
-  const investPath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${px(i)},${py(p.invested)}`).join(' ')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -125,12 +134,47 @@ function CompoundCalc() {
           </div>
         ))}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 120 }}>
-        <path d={`${totalPath} L${W},${H} L0,${H}Z`} fill="oklch(65% 0.18 148 / 0.15)" />
-        <path d={totalPath} stroke="oklch(65% 0.18 148)" strokeWidth={2} fill="none" />
-        <path d={`${investPath} L${W},${H} L0,${H}Z`} fill="oklch(63% 0.19 250 / 0.15)" />
-        <path d={investPath} stroke="oklch(63% 0.19 250)" strokeWidth={1.5} fill="none" strokeDasharray="4 3" />
-      </svg>
+      {(() => {
+        const cW = 600, cH = 180, padL = 8, padR = 8, padT = 12, padB = 28
+        const usableH = cH - padT - padB
+        const barW = Math.max(4, Math.floor((cW - padL - padR) / points.length) - 3)
+        return (
+          <svg viewBox={`0 0 ${cW} ${cH}`} style={{ width: '100%', display: 'block' }}>
+            {[0, 0.25, 0.5, 0.75, 1].map(f => {
+              const y = padT + (1 - f) * usableH
+              return (
+                <g key={f}>
+                  <line x1={padL} y1={y} x2={cW - padR} y2={y} stroke="#1c1c27" strokeWidth={1} />
+                  <text x={padL} y={y - 3} fontSize={7} fill="#3a3a50" fontFamily="Inter, sans-serif">{fmt(f * maxVal)}</text>
+                </g>
+              )
+            })}
+            {points.map((p, i) => {
+              const x = padL + i * (barW + 3)
+              const hTotal    = (p.total    / maxVal) * usableH
+              const hInvested = (p.invested / maxVal) * usableH
+              const hGain     = hTotal - hInvested
+              return (
+                <g key={p.year}>
+                  {/* Partie investie */}
+                  <rect x={x} y={padT + usableH - hInvested} width={barW} height={hInvested} fill="oklch(63% 0.19 250)" fillOpacity={0.7} rx={2} />
+                  {/* Partie intérêts composés par-dessus */}
+                  <rect x={x} y={padT + usableH - hTotal} width={barW} height={hGain} fill="oklch(65% 0.18 148)" fillOpacity={0.9} rx={2} />
+                  {i % Math.max(1, Math.floor(f.years / 10)) === 0 && (
+                    <text x={x + barW / 2} y={cH - 8} textAnchor="middle" fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">
+                      {p.year > 0 ? `${p.year}a` : '0'}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+        )
+      })()}
+      <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(63% 0.19 250)', display: 'inline-block', borderRadius: 2 }} />Investi</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.18 148)', display: 'inline-block', borderRadius: 2 }} />Intérêts composés</span>
+      </div>
     </div>
   )
 }
