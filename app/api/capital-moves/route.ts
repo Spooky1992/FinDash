@@ -92,6 +92,53 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, id: row.id })
 }
 
+export async function PATCH(req: Request) {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = parseInt(session.user.id)
+  const db = getDb()
+
+  const body = await req.json()
+  if (!body.id || typeof body.id !== 'string') return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+
+  if (!VALID_TYPES.has(body.type))    return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+  if (!VALID_ACCOUNTS.has(body.account)) return NextResponse.json({ error: 'Invalid account' }, { status: 400 })
+  if (!DATE_RE.test(body.date))       return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+  if (!body.label || typeof body.label !== 'string' || body.label.length > 200)
+    return NextResponse.json({ error: 'Invalid label' }, { status: 400 })
+
+  const amount = parseFloat(body.amount)
+  if (isNaN(amount) || !isFinite(amount) || amount <= 0 || amount > 999_999_999)
+    return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+
+  if (body.ticker && !TICKER_RE.test(body.ticker))
+    return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 })
+
+  const quantity  = body.quantity  != null ? parseFloat(body.quantity)  : null
+  const priceUnit = body.priceUnit != null ? parseFloat(body.priceUnit) : null
+  const pnl       = body.pnl       != null ? parseFloat(body.pnl)       : null
+
+  if (quantity  != null && (isNaN(quantity)  || quantity  <= 0)) return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 })
+  if (priceUnit != null && (isNaN(priceUnit) || priceUnit <= 0)) return NextResponse.json({ error: 'Invalid priceUnit' }, { status: 400 })
+  if (pnl != null && (isNaN(pnl) || !isFinite(pnl)))            return NextResponse.json({ error: 'Invalid pnl' }, { status: 400 })
+
+  await db.update(capitalMoves).set({
+    date:      body.date,
+    type:      body.type,
+    account:   body.account,
+    ticker:    body.ticker?.trim().toUpperCase() ?? null,
+    label:     body.label.trim(),
+    quantity:  quantity  != null ? String(quantity)  : null,
+    priceUnit: priceUnit != null ? String(priceUnit) : null,
+    amount:    String(amount),
+    currency:  body.currency === 'USD' ? 'USD' : 'EUR',
+    pnl:       pnl != null ? String(pnl) : null,
+    notes:     body.notes?.trim() ?? null,
+  }).where(and(eq(capitalMoves.id, body.id), eq(capitalMoves.userId, userId)))
+
+  return NextResponse.json({ ok: true })
+}
+
 export async function DELETE(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
