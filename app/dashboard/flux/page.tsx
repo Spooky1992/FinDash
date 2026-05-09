@@ -9,14 +9,14 @@ interface SNode { id: string; label: string; val: number; color: string; x: numb
 interface SLink { sx: number; sy: number; tx: number; ty: number; h: number; color: string; label: string; val: number }
 
 function sankeyLayout(budget: Budget) {
-  const W = 700, nodeW = 18, gap = 12, padY = 20
+  const W = 560, nodeW = 14, gap = 10, padY = 16
   const totalIncome  = budget.incomes.reduce((s, i) => s + i.amount, 0)
   const totalExpense = budget.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
   const totalSaving  = budget.savings.reduce((s, i) => s + i.amount, 0)
   const surplus      = totalIncome - totalExpense - totalSaving
   const maxVal = Math.max(totalIncome, 1)
-  const H_scale = 260
-  const layerX = [padY + 60, W * 0.3, W * 0.58, W - nodeW - padY - 60]
+  const H_scale = 280
+  const layerX = [padY + 50, W * 0.32, W * 0.62, W - nodeW - padY - 40]
 
   const nodes: SNode[] = []
   const links: SLink[] = []
@@ -50,7 +50,7 @@ function sankeyLayout(budget: Budget) {
   }
   if (surplus > 0) {
     const h = Math.max((surplus / maxVal) * H_scale, 6)
-    rightNodes.push({ id: 'surp', label: 'Surplus', val: surplus, color: 'oklch(65% 0.18 148)', x: layerX[2], y: yOff, h, layer: 2 })
+    rightNodes.push({ id: 'surp', label: 'Surplus / Économies +', val: surplus, color: 'oklch(65% 0.18 148)', x: layerX[2], y: yOff, h, layer: 2 })
   }
   nodes.push(...rightNodes)
 
@@ -67,7 +67,7 @@ function sankeyLayout(budget: Budget) {
     dstOff += lh
   }
 
-  return { nodes, links, W, H: Math.max(totalH, yOff + padY, 280) }
+  return { nodes, links, W, H: Math.max(totalH, yOff + padY, 300) }
 }
 
 function SankeyDiagram({ budget }: { budget: Budget }) {
@@ -79,22 +79,109 @@ function SankeyDiagram({ budget }: { budget: Budget }) {
       {links.map((l, i) => {
         const mx = (l.sx + l.tx) / 2
         const p = `M${l.sx},${l.sy} C${mx},${l.sy} ${mx},${l.ty} ${l.tx},${l.ty} L${l.tx},${l.ty+l.h} C${mx},${l.ty+l.h} ${mx},${l.sy+l.h} ${l.sx},${l.sy+l.h}Z`
-        return <path key={i} d={p} fill={l.color} fillOpacity={hover === l.label ? 0.65 : 0.3}
-          onMouseEnter={() => setHover(l.label)} onMouseLeave={() => setHover(null)} style={{ transition: 'fill-opacity 0.15s' }} />
+        return <path key={i} d={p} fill={l.color} fillOpacity={hover === l.label ? 0.65 : 0.28}
+          onMouseEnter={() => setHover(l.label)} onMouseLeave={() => setHover(null)} style={{ transition: 'fill-opacity 0.15s', cursor: 'pointer' }} />
       })}
       {nodes.map(n => (
         <g key={n.id}>
-          <rect x={n.x} y={n.y} width={18} height={n.h} rx={4} fill={n.color} />
-          <text x={n.layer < 2 ? n.x - 8 : n.x + 26} y={n.y + n.h / 2 + 4}
-            textAnchor={n.layer < 2 ? 'end' : 'start'} fontSize={11} fill="#e8e8f2">{n.label}</text>
-          <text x={n.layer < 2 ? n.x - 8 : n.x + 26} y={n.y + n.h / 2 + 16}
-            textAnchor={n.layer < 2 ? 'end' : 'start'} fontSize={10} fill="#636385">{fmt(n.val)}</text>
+          <rect x={n.x} y={n.y} width={14} height={n.h} rx={3} fill={n.color} />
+          <text x={n.layer < 2 ? n.x - 7 : n.x + 22} y={n.y + n.h / 2 + 4}
+            textAnchor={n.layer < 2 ? 'end' : 'start'} fontSize={10} fill="#e8e8f2" fontFamily="Inter, sans-serif">{n.label}</text>
+          <text x={n.layer < 2 ? n.x - 7 : n.x + 22} y={n.y + n.h / 2 + 15}
+            textAnchor={n.layer < 2 ? 'end' : 'start'} fontSize={9} fill="#636385" fontFamily="Inter, sans-serif">{fmt(n.val)}</text>
         </g>
       ))}
     </svg>
   )
 }
 
+// ── Budget panel (right column) ───────────────────────────────────────────────
+function BudgetPanel({ budget, onEdit }: { budget: Budget; onEdit: () => void }) {
+  const totalIncome  = budget.incomes.reduce((s, i) => s + i.amount, 0)
+  const totalExpense = budget.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
+  const totalSaving  = budget.savings.reduce((s, i) => s + i.amount, 0)
+  const surplus      = totalIncome - totalExpense - totalSaving
+
+  return (
+    <div style={{ ...cardCss, display: 'flex', flexDirection: 'column', gap: 0, minWidth: 280 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Budget mensuel de base</span>
+        <button onClick={onEdit} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>)</button>
+      </div>
+
+      {/* Revenus */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: 'oklch(65% 0.18 148)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span>↑</span> REVENUS
+        </div>
+        {budget.incomes.map(inc => (
+          <div key={inc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: inc.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: '#e8e8f2' }}>{inc.label}</span>
+            </div>
+            <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{inc.amount.toLocaleString('fr-FR')} €</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Dépenses */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: 'oklch(62% 0.20 25)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span>↓</span> DÉPENSES
+        </div>
+        {budget.expenses.map(cat => {
+          const total = cat.items.reduce((s, i) => s + i.amount, 0)
+          if (total === 0) return null
+          return (
+            <div key={cat.label}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
+                <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{cat.label}</span>
+                <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{total.toLocaleString('fr-FR')} €</span>
+              </div>
+              {cat.items.map(item => (
+                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 3px 16px', borderBottom: '1px solid #13131b' }}>
+                  <span style={{ fontSize: 11, color: '#636385' }}>{item.label}</span>
+                  <span style={{ fontSize: 11, color: '#636385' }}>{item.amount.toLocaleString('fr-FR')} €</span>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Épargne */}
+      {budget.savings.some(s => s.amount > 0) && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: 'oklch(63% 0.19 250)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span>○</span> ÉPARGNE
+          </div>
+          {budget.savings.filter(s => s.amount > 0).map(sav => (
+            <div key={sav.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1c1c27' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: sav.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: '#e8e8f2' }}>{sav.label}</span>
+              </div>
+              <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>{sav.amount.toLocaleString('fr-FR')} €</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Surplus */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, padding: '8px 0', borderTop: '1px solid #252535' }}>
+        <span style={{ fontSize: 12, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>
+          Surplus / Économies
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+          {surplus >= 0 ? '+' : ''}{surplus.toLocaleString('fr-FR')} €
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── Month grid ────────────────────────────────────────────────────────────────
 function MonthGrid({ budget, monthPlans, solde }: { budget: Budget; monthPlans: Record<string, MonthPlan>; solde: number }) {
   const curKey = currentMonthKey()
   let running = solde
@@ -125,6 +212,7 @@ function MonthGrid({ budget, monthPlans, solde }: { budget: Budget; monthPlans: 
   )
 }
 
+// ── Edit panel ────────────────────────────────────────────────────────────────
 function EditPanel({ budget, onSave, onCancel }: { budget: Budget; onSave: (b: Budget) => void; onCancel: () => void }) {
   const [b, setB] = useState<Budget>(JSON.parse(JSON.stringify(budget)))
   const [tab, setTab] = useState<'incomes' | 'expenses' | 'savings'>('incomes')
@@ -150,7 +238,7 @@ function EditPanel({ budget, onSave, onCancel }: { budget: Budget; onSave: (b: B
               <button onClick={() => setB({ ...b, incomes: b.incomes.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>✕</button>
             </div>
           ))}
-          <button onClick={() => setB({ ...b, incomes: [...b.incomes, { id: `i${Date.now()}`, label: 'Revenu', amount: 0, color: COLOR_LIST[b.incomes.length % COLOR_LIST.length] }] })}
+          <button onClick={() => setB({ ...b, incomes: [...b.incomes, { id: `i${Date.now()}`, label: 'Nouveau revenu', amount: 0, color: COLOR_LIST[b.incomes.length % COLOR_LIST.length] }] })}
             style={{ ...btnCss('#1c1c27', false), border: '1px solid #252535', color: '#636385', marginTop: 4 }}>+ Ajouter</button>
         </div>
       )}
@@ -201,6 +289,7 @@ function EditPanel({ budget, onSave, onCancel }: { budget: Budget; onSave: (b: B
   )
 }
 
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function FluxPage() {
   const { budget, monthPlans, compte, saveBudget, loading } = useAppData()
   const [showEdit, setShowEdit] = useState(false)
@@ -211,36 +300,55 @@ export default function FluxPage() {
   const totalExpense = resolved.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
   const totalSaving  = resolved.savings.reduce((s, i) => s + i.amount, 0)
   const surplus = totalIncome - totalExpense - totalSaving
+  const savingRate = totalIncome > 0 ? ((totalSaving + Math.max(surplus, 0)) / totalIncome) * 100 : 0
 
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
+  const kpis = [
+    { label: 'Revenus',       val: fmt(totalIncome),  color: 'oklch(65% 0.18 148)', icon: '↑' },
+    { label: 'Dépenses',      val: fmt(totalExpense), color: 'oklch(62% 0.20 25)',  icon: '↓' },
+    { label: 'Épargne',       val: fmt(totalSaving),  color: 'oklch(63% 0.19 250)', icon: '○' },
+    { label: 'Surplus',       val: fmt(surplus),      color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '+' },
+    { label: "Taux d'épargne", val: savingRate.toFixed(1) + '%', color: 'oklch(78% 0.16 80)', icon: '◎' },
+  ]
+
   return (
-    <div style={{ padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f2' }}>Flux — {monthLabel(curKey)}</h1>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f2', margin: 0 }}>Flux budgétaires</h1>
+          <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Visualisez et modifiez vos flux d&apos;argent</p>
+        </div>
         <button onClick={() => setShowEdit(e => !e)} style={btnCss()}>{showEdit ? '✕ Fermer' : '✏ Modifier budget'}</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {[
-          { label: 'Revenus',  val: totalIncome,  color: 'oklch(65% 0.18 148)' },
-          { label: 'Dépenses', val: totalExpense, color: 'oklch(62% 0.20 25)'  },
-          { label: 'Épargne',  val: totalSaving,  color: 'oklch(63% 0.19 250)' },
-          { label: 'Surplus',  val: surplus, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
-        ].map(k => (
-          <div key={k.label} style={{ ...cardCss, textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#636385', marginBottom: 4 }}>{k.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ ...cardCss, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: `${k.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: k.color, flexShrink: 0 }}>
+              {k.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#636385', marginBottom: 2 }}>{k.label}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: k.color }}>{k.val}</div>
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Edit panel */}
       {showEdit && <EditPanel budget={budget} onSave={async b => { await saveBudget(b); setShowEdit(false) }} onCancel={() => setShowEdit(false)} />}
 
-      {totalIncome > 0 && (
-        <div style={cardCss}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 20 }}>Flux financier</div>
-          <SankeyDiagram budget={resolved} />
+      {/* Main: Sankey + Budget panel side by side */}
+      {totalIncome > 0 && !showEdit && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
+          <div style={cardCss}>
+            <SankeyDiagram budget={resolved} />
+          </div>
+          <BudgetPanel budget={resolved} onEdit={() => setShowEdit(true)} />
         </div>
       )}
 
@@ -253,8 +361,11 @@ export default function FluxPage() {
         </div>
       )}
 
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Vue mensuelle</div>
-      <MonthGrid budget={budget} monthPlans={monthPlans} solde={compte.solde} />
+      {/* Vue mensuelle */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>Vue mensuelle</div>
+        <MonthGrid budget={budget} monthPlans={monthPlans} solde={compte.solde} />
+      </div>
     </div>
   )
 }

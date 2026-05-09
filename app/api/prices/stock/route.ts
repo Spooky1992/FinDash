@@ -30,10 +30,13 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ticker,
-      price:  meta.regularMarketPrice ?? validPrices[validPrices.length - 1] ?? 0,
-      high52: meta.fiftyTwoWeekHigh ?? Math.max(...validPrices),
-      low52:  meta.fiftyTwoWeekLow  ?? Math.min(...validPrices),
-      prices: validPrices,
+      price:    meta.regularMarketPrice ?? validPrices[validPrices.length - 1] ?? 0,
+      high52:   meta.fiftyTwoWeekHigh ?? Math.max(...validPrices),
+      low52:    meta.fiftyTwoWeekLow  ?? Math.min(...validPrices),
+      longName: meta.longName ?? meta.shortName ?? null,
+      exchange: meta.fullExchangeName ?? meta.exchangeName ?? null,
+      currency: meta.currency ?? null,
+      prices:   validPrices,
       timestamps,
     })
   } catch (e) {
