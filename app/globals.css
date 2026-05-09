@@ -255,3 +255,20 @@ text { user-select: none; }
   .grid-3 { grid-template-columns: 1fr; }
   .grid-form-tx { grid-template-columns: 1fr; }
 }
+
+/* ── Transactions : carte compte ────────────────────────────────────────────*/
+.compte-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.compte-stats { display: flex; gap: 20px; font-size: 12px; }
+
+@media (max-width: 768px) {
+  .compte-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .compte-stats { gap: 12px; flex-wrap: wrap; }
+
+  /* Formulaire tx : type pills + bouton submit en colonne */
+  .tx-form-actions { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
+  .tx-type-pills   { flex-wrap: wrap; gap: 6px !important; }
+  .tx-submit-btn   { width: 100%; justify-content: center; }
+
+  /* Investissements : en-tête section */
+  .invest-section-header { flex-direction: column; align-items: flex-start !important; gap: 8px !important; }
+}

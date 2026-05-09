@@ -55,7 +55,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Carte compte */}
-      <div style={{ ...cardCss, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+      <div style={cardCss} className="compte-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 14, background: 'oklch(63% 0.19 250 / 0.15)', border: '1px solid oklch(63% 0.19 250 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>◈</div>
           <div>
@@ -96,23 +96,23 @@ export default function TransactionsPage() {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
           {!editingSolde && (
             <button onClick={() => { setSoldeInput(String(compte.solde)); setEditingSolde(true) }}
               style={{ padding: '8px 18px', borderRadius: 9, background: 'transparent', border: '1px solid #252535', color: '#636385', fontSize: 13, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
               ✏ Modifier le solde
             </button>
           )}
-          <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
-            <div style={{ textAlign: 'right' }}>
+          <div className="compte-stats">
+            <div>
               <div style={{ color: '#636385', marginBottom: 2 }}>Entrées (période)</div>
               <div style={{ color: 'oklch(65% 0.18 148)', fontWeight: 700 }}>+{fmt(totalIn)}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div>
               <div style={{ color: '#636385', marginBottom: 2 }}>Sorties (période)</div>
               <div style={{ color: 'oklch(62% 0.20 25)', fontWeight: 700 }}>−{fmt(totalOut)}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div>
               <div style={{ color: '#636385', marginBottom: 2 }}>Net période</div>
               <div style={{ color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 700 }}>
                 {totalIn - totalOut >= 0 ? '+' : ''}{fmt(totalIn - totalOut)}
@@ -150,8 +150,8 @@ export default function TransactionsPage() {
           </div>
 
           {/* Ligne 2 : type + submit */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
+          <div className="tx-form-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div className="tx-type-pills" style={{ display: 'flex', gap: 6 }}>
               <span style={{ fontSize: 11, color: '#636385', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginRight: 4, alignSelf: 'center' }}>Type :</span>
               {TX_TYPES.map(t => {
                 const active = form.type === t.value
@@ -169,7 +169,7 @@ export default function TransactionsPage() {
                 )
               })}
             </div>
-            <button type="submit"
+            <button type="submit" className="tx-submit-btn"
               style={{
                 padding: '9px 24px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter',
                 background: selectedType?.color ?? 'oklch(63% 0.19 250)',

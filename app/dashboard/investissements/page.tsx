@@ -338,7 +338,7 @@ export default function InvestissementsPage() {
       {/* Actions & ETF */}
       {peaPositions.length > 0 && (
         <div style={cardCss}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 16 }}>📈</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Actions & ETF</span>
@@ -384,7 +384,7 @@ export default function InvestissementsPage() {
       {/* Crypto */}
       {cryptoPositions.length > 0 && (
         <div style={cardCss}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 16 }}>₿</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Crypto</span>
