@@ -71,3 +71,21 @@ export const portfolio = pgTable('portfolio', {
   data:      jsonb('data').notNull().default('[]'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ── Journal des mouvements de capital ─────────────────────
+export const capitalMoves = pgTable('capital_moves', {
+  id:        varchar('id', { length: 64 }).primaryKey(),
+  userId:    integer('user_id').notNull().references(() => users.id),
+  date:      date('date').notNull(),
+  type:      varchar('type', { length: 20 }).notNull(),   // deposit|withdrawal|buy|sell
+  account:   varchar('account', { length: 20 }).notNull(),// PEA|CTO|Crypto
+  ticker:    varchar('ticker', { length: 30 }),
+  label:     text('label').notNull(),
+  quantity:  numeric('quantity', { precision: 18, scale: 8 }),
+  priceUnit: numeric('price_unit', { precision: 18, scale: 6 }),
+  amount:    numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  currency:  varchar('currency', { length: 5 }).notNull().default('EUR'),
+  pnl:       numeric('pnl', { precision: 12, scale: 2 }),
+  notes:     text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})

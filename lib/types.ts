@@ -49,6 +49,21 @@ export interface Portfolio {
   livrets: { accounts: Livret[] }
   immo: { properties: Immo[] }
 }
+export interface CapitalMove {
+  id: string
+  date: string
+  type: 'deposit' | 'withdrawal' | 'buy' | 'sell'
+  account: 'PEA' | 'CTO' | 'Crypto'
+  ticker?: string | null
+  label: string
+  quantity?: number | null
+  priceUnit?: number | null
+  amount: number
+  currency: string
+  pnl?: number | null
+  notes?: string | null
+}
+
 export interface AppData {
   budget: Budget
   monthPlans: Record<string, MonthPlan>
