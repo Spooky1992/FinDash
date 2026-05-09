@@ -29,6 +29,7 @@ export interface CompteHistorique {
 export interface Position {
   id: string; ticker: string; quantity: number; costPerUnit: number
   price?: number; name?: string; symbol?: string
+  currency?: 'EUR' | 'USD'  // devise du PRU saisi — défaut EUR
 }
 export interface Livret {
   id: string; name: string; rate: number; solde: number

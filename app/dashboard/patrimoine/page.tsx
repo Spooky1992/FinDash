@@ -84,15 +84,27 @@ export default function PatrimoinePage() {
   const { portfolio, budget, savePortfolio, loading } = useAppData()
   const [tab, setTab] = useState<Tab>('pea')
   const [prices, setPrices] = useState<Record<string, number>>({})
+  const [eurUsd, setEurUsd] = useState<number>(1.1) // taux EUR/USD (1 EUR = X USD)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [editItem, setEditItem] = useState<Partial<Position & Livret & Immo> & { _type?: Tab }>({})
+  const [editItem, setEditItem] = useState<Partial<Position & Livret & Immo> & { _type?: Tab; currency?: 'EUR' | 'USD' }>({})
+
+  // Convertit un montant en EUR (les prix live sont toujours en USD pour actions US/crypto)
+  function toEur(amount: number, currency: 'EUR' | 'USD' = 'EUR') {
+    return currency === 'USD' ? amount / eurUsd : amount
+  }
 
   useEffect(() => {
     if (loading) return
     const fetchAll = async () => {
       setLoadingPrices(true)
       const newPrices: Record<string, number> = {}
+      // Fetch taux EUR/USD
+      try {
+        const r = await fetch('/api/prices/stock?ticker=EUR%3DX')
+        const d = await r.json()
+        if (d.price) setEurUsd(1 / d.price) // EUR=X donne USD/EUR, on veut EUR/USD
+      } catch {}
       await Promise.all([
         ...portfolio.pea.positions.map(async p => { const price = await fetchStockPrice(p.ticker); if (price) newPrices[p.ticker] = price }),
         ...portfolio.crypto.positions.map(async p => { const id = KNOWN_COINS[p.ticker.toUpperCase()] ?? p.ticker.toLowerCase(); const price = await fetchCryptoPrice(id); if (price) newPrices[p.ticker] = price }),
@@ -110,7 +122,7 @@ export default function PatrimoinePage() {
     const p: Portfolio = JSON.parse(JSON.stringify(portfolio))
     const t = editItem._type ?? tab
     if (t === 'pea' || t === 'crypto') {
-      const pos: Position = { id: (editItem as Position).id || uid(), ticker: editItem.ticker || '', quantity: Number(editItem.quantity) || 0, costPerUnit: Number(editItem.costPerUnit) || 0, name: editItem.name }
+      const pos: Position = { id: (editItem as Position).id || uid(), ticker: editItem.ticker || '', quantity: Number(editItem.quantity) || 0, costPerUnit: Number(editItem.costPerUnit) || 0, name: editItem.name, currency: editItem.currency ?? 'EUR' }
       const arr = t === 'pea' ? p.pea.positions : p.crypto.positions
       const idx = arr.findIndex(x => x.id === pos.id)
       if (idx >= 0) arr[idx] = pos; else arr.push(pos)
@@ -137,8 +149,22 @@ export default function PatrimoinePage() {
     await savePortfolio(p)
   }
 
-  const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
-  const cryptoTotal  = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * (prices[p.ticker] ?? p.price ?? p.costPerUnit), 0)
+  // Les prix live (Yahoo/CoinGecko) sont déjà en EUR quand le ticker contient .PA/.AS ou -EUR
+  // Pour les tickers USD natifs, on convertit via eurUsd
+  function liveEur(p: Position) {
+    const raw = prices[p.ticker] ?? p.price ?? p.costPerUnit
+    // Si le ticker se termine par -EUR ou .PA/.AS, le prix est en EUR
+    const isEurTicker = p.ticker.endsWith('-EUR') || p.ticker.endsWith('.PA') || p.ticker.endsWith('.AS')
+    if (isEurTicker) return raw
+    // Sinon le prix live est en USD (Yahoo retourne en USD pour LUNR etc.)
+    return raw / eurUsd
+  }
+  function costEur(p: Position) {
+    return p.currency === 'USD' ? p.costPerUnit / eurUsd : p.costPerUnit
+  }
+
+  const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
+  const cryptoTotal  = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
   const livretsTotal = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
   const immoTotal    = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
   const grandTotal   = peaTotal + cryptoTotal + livretsTotal + immoTotal
@@ -232,12 +258,14 @@ export default function PatrimoinePage() {
                 </tr></thead>
                 <tbody>
                   {(tab === 'pea' ? portfolio.pea.positions : portfolio.crypto.positions).map(pos => {
-                    const live = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
+                    const live  = liveEur(pos)
+                    const cpu   = costEur(pos)
                     const value = pos.quantity * live
-                    const cost = pos.quantity * pos.costPerUnit
-                    const pnl = value - cost
-                    const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
-                    const col = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
+                    const cost  = pos.quantity * cpu
+                    const pnl   = value - cost
+                    const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+                    const col   = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
+                    const isUsd = pos.currency === 'USD'
                     return (
                       <tr key={pos.id} style={{ borderBottom: '1px solid #1c1c27' }}>
                         <td style={{ padding: '10px 10px' }}>
@@ -250,7 +278,12 @@ export default function PatrimoinePage() {
                         </td>
                         <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{pos.name ?? '—'}</td>
                         <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{pos.quantity}</td>
-                        <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{fmt(pos.costPerUnit)}</td>
+                        <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>
+                          {isUsd
+                            ? <><span style={{ color: '#e8e8f2' }}>{pos.costPerUnit.toFixed(2)}</span><span style={{ fontSize: 9, color: 'oklch(68% 0.17 55)', marginLeft: 3 }}>USD</span> <span style={{ color: '#3a3a50' }}>≈ {fmt(cpu)}</span></>
+                            : fmt(pos.costPerUnit)
+                          }
+                        </td>
                         <td style={{ padding: '10px 10px', fontSize: 12, color: prices[pos.ticker] ? '#e8e8f2' : '#636385', textAlign: 'right' }}>{fmt(live)}</td>
                         <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(value)}</td>
                         <td style={{ padding: '10px 10px', fontSize: 12, textAlign: 'right', color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>
@@ -330,11 +363,15 @@ export default function PatrimoinePage() {
             const col = tab === 'pea' ? CAT_COLORS.pea : CAT_COLORS.crypto
             if (positions.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucune position</div>
             return positions.map(pos => {
-              const live = prices[pos.ticker] ?? pos.price ?? pos.costPerUnit
-              const value = pos.quantity * live
-              const cost = pos.quantity * pos.costPerUnit
-              const pnl = value - cost
-              const pnlPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
+              const live   = liveEur(pos)
+              const cpu    = costEur(pos)
+              const value  = pos.quantity * live
+              const cost   = pos.quantity * cpu
+              const pnl    = value - cost
+              const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+              const pruLabel = pos.currency === 'USD'
+                ? `${pos.costPerUnit.toFixed(2)} USD ≈ ${fmt(cpu)}`
+                : fmt(pos.costPerUnit)
               return (
                 <div key={pos.id} style={{ background: '#1c1c27', borderRadius: 12, padding: '14px 16px', border: '1px solid #252535' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
@@ -354,16 +391,16 @@ export default function PatrimoinePage() {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                     {[
-                      { label: 'Quantité', val: String(pos.quantity) },
-                      { label: 'PRU', val: fmt(pos.costPerUnit) },
+                      { label: 'Quantité',  val: String(pos.quantity) },
+                      { label: pos.currency === 'USD' ? 'PRU (USD→€)' : 'PRU', val: pruLabel },
                       { label: 'Prix live', val: fmt(live) },
-                      { label: 'Valeur', val: fmt(value) },
-                      { label: 'P&L', val: `${pnl >= 0 ? '+' : ''}${fmt(pnl)}`, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
-                      { label: 'Perf.', val: `${fmtPct(pnlPct)}`, color: pnlPct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                      { label: 'Valeur',    val: fmt(value) },
+                      { label: 'P&L',       val: `${pnl >= 0 ? '+' : ''}${fmt(pnl)}`, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                      { label: 'Perf.',     val: fmtPct(pnlPct), color: pnlPct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
                     ].map(r => (
                       <div key={r.label} style={{ background: '#13131b', borderRadius: 8, padding: '8px 10px' }}>
                         <div style={{ fontSize: 10, color: '#636385', marginBottom: 2 }}>{r.label}</div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: r.color ?? '#e8e8f2' }}>{r.val}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: r.color ?? '#e8e8f2' }}>{r.val}</div>
                       </div>
                     ))}
                   </div>
@@ -428,8 +465,31 @@ export default function PatrimoinePage() {
                 <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} /></div>
               <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Quantité</label>
                 <input type="number" step="any" value={(editItem as Position).quantity ?? ''} onChange={e => setEditItem(x => ({ ...x, quantity: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Prix d&apos;achat moyen (€)</label>
-                <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} /></div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>
+                    Prix d&apos;achat moyen ({editItem.currency === 'USD' ? 'USD' : '€'})
+                  </label>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {(['EUR', 'USD'] as const).map(cur => (
+                      <button key={cur} type="button"
+                        onClick={() => setEditItem(x => ({ ...x, currency: cur }))}
+                        style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter',
+                          background: (editItem.currency ?? 'EUR') === cur ? 'oklch(63% 0.19 250)' : '#1c1c27',
+                          border: `1px solid ${(editItem.currency ?? 'EUR') === cur ? 'oklch(63% 0.19 250)' : '#252535'}`,
+                          color: (editItem.currency ?? 'EUR') === cur ? '#fff' : '#636385' }}>
+                        {cur}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input type="number" step="any" value={(editItem as Position).costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} />
+                {editItem.currency === 'USD' && (editItem as Position).costPerUnit > 0 && (
+                  <div style={{ fontSize: 11, color: '#636385', marginTop: 5 }}>
+                    ≈ {fmt((editItem as Position).costPerUnit / eurUsd)} au taux 1 USD = {(1 / eurUsd).toFixed(4)} €
+                  </div>
+                )}
+              </div>
             </>)}
             {editItem._type === 'livrets' && (<>
               <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du compte</label>
