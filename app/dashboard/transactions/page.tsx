@@ -52,25 +52,6 @@ export default function TransactionsPage() {
         <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Suivez vos entrées et sorties d&apos;argent</p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid-3" style={{ gap: 12 }}>
-        {[
-          { label: 'Entrées',  val: totalIn,           color: 'oklch(65% 0.18 148)', icon: '↑', bg: 'oklch(65% 0.18 148 / 0.1)' },
-          { label: 'Sorties',  val: totalOut,           color: 'oklch(62% 0.20 25)',  icon: '↓', bg: 'oklch(62% 0.20 25 / 0.1)'  },
-          { label: 'Solde net',val: totalIn - totalOut, color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '=', bg: 'oklch(63% 0.19 250 / 0.1)' },
-        ].map(k => (
-          <div key={k.label} style={{ ...cardCss, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: k.color, flexShrink: 0, fontWeight: 700 }}>
-              {k.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#636385', marginBottom: 2, fontWeight: 600 }}>{k.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Formulaire ajout */}
       <div style={cardCss}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 18 }}>Nouvelle transaction</div>
@@ -130,6 +111,25 @@ export default function TransactionsPage() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid-3" style={{ gap: 12 }}>
+        {[
+          { label: 'Entrées',  val: totalIn,           color: 'oklch(65% 0.18 148)', icon: '↑', bg: 'oklch(65% 0.18 148 / 0.1)' },
+          { label: 'Sorties',  val: totalOut,           color: 'oklch(62% 0.20 25)',  icon: '↓', bg: 'oklch(62% 0.20 25 / 0.1)'  },
+          { label: 'Solde net',val: totalIn - totalOut, color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '=', bg: 'oklch(63% 0.19 250 / 0.1)' },
+        ].map(k => (
+          <div key={k.label} style={{ ...cardCss, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: k.color, flexShrink: 0, fontWeight: 700 }}>
+              {k.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#636385', marginBottom: 2, fontWeight: 600 }}>{k.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Filtres + recherche */}

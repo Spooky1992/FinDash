@@ -18,7 +18,7 @@ export default auth((req) => {
   }
 
   if (req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL(isLoggedIn ? '/dashboard/flux' : '/login', req.url))
+    return NextResponse.redirect(new URL(isLoggedIn ? '/dashboard/transactions' : '/login', req.url))
   }
 
   return NextResponse.next()
