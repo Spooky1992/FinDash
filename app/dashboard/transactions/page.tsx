@@ -10,8 +10,10 @@ const typeLabel = (t: string) => TX_TYPES.find(x => x.value === t)?.label ?? t
 const labelStyle: React.CSSProperties = { fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }
 
 export default function TransactionsPage() {
-  const { transactions, saveTx, deleteTx, loading } = useAppData()
+  const { transactions, compte, updateSolde, saveTx, deleteTx, loading } = useAppData()
   const [form, setForm] = useState({ date: todayISO(), label: '', category: '', amount: '', type: 'expense' })
+  const [editingSolde, setEditingSolde] = useState(false)
+  const [soldeInput, setSoldeInput] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date')
@@ -50,6 +52,74 @@ export default function TransactionsPage() {
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f2', margin: 0 }}>Transactions</h1>
         <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Suivez vos entrées et sorties d&apos;argent</p>
+      </div>
+
+      {/* Carte compte */}
+      <div style={{ ...cardCss, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'oklch(63% 0.19 250 / 0.15)', border: '1px solid oklch(63% 0.19 250 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>◈</div>
+          <div>
+            <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Solde du compte</div>
+            {editingSolde ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="number" step="0.01" autoFocus
+                  value={soldeInput}
+                  onChange={e => setSoldeInput(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter') {
+                      await updateSolde(parseFloat(soldeInput) || 0, todayISO())
+                      setEditingSolde(false)
+                    }
+                    if (e.key === 'Escape') setEditingSolde(false)
+                  }}
+                  style={{ ...inputCss, width: 160, fontSize: 20, fontWeight: 700, padding: '4px 10px' }}
+                />
+                <button onClick={async () => { await updateSolde(parseFloat(soldeInput) || 0, todayISO()); setEditingSolde(false) }}
+                  style={{ padding: '6px 14px', borderRadius: 8, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Inter' }}>
+                  OK
+                </button>
+                <button onClick={() => setEditingSolde(false)}
+                  style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: '1px solid #252535', color: '#636385', fontSize: 13, cursor: 'pointer', fontFamily: 'Inter' }}>
+                  Annuler
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 28, fontWeight: 700, color: compte.solde >= 0 ? '#e8e8f2' : 'oklch(62% 0.20 25)', lineHeight: 1.1 }}>
+                {fmt(compte.solde)}
+              </div>
+            )}
+            {compte.derniereMaj && !editingSolde && (
+              <div style={{ fontSize: 11, color: '#636385', marginTop: 3 }}>
+                Mis à jour le {new Date(compte.derniereMaj).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          {!editingSolde && (
+            <button onClick={() => { setSoldeInput(String(compte.solde)); setEditingSolde(true) }}
+              style={{ padding: '8px 18px', borderRadius: 9, background: 'transparent', border: '1px solid #252535', color: '#636385', fontSize: 13, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              ✏ Modifier le solde
+            </button>
+          )}
+          <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: '#636385', marginBottom: 2 }}>Entrées (période)</div>
+              <div style={{ color: 'oklch(65% 0.18 148)', fontWeight: 700 }}>+{fmt(totalIn)}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: '#636385', marginBottom: 2 }}>Sorties (période)</div>
+              <div style={{ color: 'oklch(62% 0.20 25)', fontWeight: 700 }}>−{fmt(totalOut)}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: '#636385', marginBottom: 2 }}>Net période</div>
+              <div style={{ color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 700 }}>
+                {totalIn - totalOut >= 0 ? '+' : ''}{fmt(totalIn - totalOut)}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Formulaire ajout */}
@@ -111,25 +181,6 @@ export default function TransactionsPage() {
             </button>
           </div>
         </form>
-      </div>
-
-      {/* KPIs */}
-      <div className="grid-3" style={{ gap: 12 }}>
-        {[
-          { label: 'Entrées',  val: totalIn,           color: 'oklch(65% 0.18 148)', icon: '↑', bg: 'oklch(65% 0.18 148 / 0.1)' },
-          { label: 'Sorties',  val: totalOut,           color: 'oklch(62% 0.20 25)',  icon: '↓', bg: 'oklch(62% 0.20 25 / 0.1)'  },
-          { label: 'Solde net',val: totalIn - totalOut, color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', icon: '=', bg: 'oklch(63% 0.19 250 / 0.1)' },
-        ].map(k => (
-          <div key={k.label} style={{ ...cardCss, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: k.color, flexShrink: 0, fontWeight: 700 }}>
-              {k.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#636385', marginBottom: 2, fontWeight: 600 }}>{k.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* Filtres + recherche */}
