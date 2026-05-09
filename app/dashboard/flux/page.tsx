@@ -182,6 +182,12 @@ function BudgetPanel({ budget, onSave }: { budget: Budget; onSave: (b: Budget) =
     onSave({ ...budget, incomes: [...budget.incomes, { id: `i${Date.now()}`, label: 'Nouveau revenu', amount: 0, color: COLOR_LIST[budget.incomes.length % COLOR_LIST.length] }] })
   }
 
+  function updateExpenseCategoryLabel(oldLabel: string, newLabel: string) {
+    onSave({
+      ...budget,
+      expenses: budget.expenses.map(cat => cat.label === oldLabel ? { ...cat, label: newLabel } : cat),
+    })
+  }
   function updateExpenseItem(catLabel: string, itemLabel: string, patch: Partial<{ label: string; amount: number }>) {
     onSave({
       ...budget,
@@ -255,7 +261,7 @@ function BudgetPanel({ budget, onSave }: { budget: Budget; onSave: (b: Budget) =
           return (
             <div key={cat.label} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #252535' }}>
-                <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{cat.label}</span>
+                <InlineLabel value={cat.label} onSave={v => updateExpenseCategoryLabel(cat.label, v)} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 11, color: '#636385' }}>{total.toLocaleString('fr-FR')} €</span>
                   <button style={iconBtn} onClick={() => addExpenseItem(cat.label)} title="Ajouter une ligne">+</button>
