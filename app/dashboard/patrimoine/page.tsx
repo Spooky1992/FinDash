@@ -196,9 +196,9 @@ export default function PatrimoinePage() {
   const TABS: { key: Tab; label: string; total: number }[] = [
     { key: 'pea',     label: 'Actions & Fonds', total: peaTotal },
     { key: 'livrets', label: 'Livrets',          total: livretsTotal },
-    { key: 'crypto',  label: 'Crypto',          total: cryptoTotal },
+    { key: 'crypto',  label: 'Crypto',           total: cryptoTotal },
     { key: 'immo',    label: 'Immobilier',       total: immoTotal },
-  ]
+  ].sort((a, b) => b.total - a.total)
 
   // Treemap : une tuile par catégorie (pas par actif individuel)
   const treemapItems: TreemapItem[] = TABS
