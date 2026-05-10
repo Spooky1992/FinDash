@@ -193,12 +193,12 @@ export default function PatrimoinePage() {
   const immoTotal    = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
   const grandTotal   = peaTotal + cryptoTotal + livretsTotal + immoTotal
 
-  const TABS: { key: Tab; label: string; total: number }[] = [
-    { key: 'pea',     label: 'Actions & Fonds', total: peaTotal },
-    { key: 'livrets', label: 'Livrets',          total: livretsTotal },
-    { key: 'crypto',  label: 'Crypto',           total: cryptoTotal },
-    { key: 'immo',    label: 'Immobilier',       total: immoTotal },
-  ].sort((a, b) => b.total - a.total)
+  const TABS: { key: Tab; label: string; total: number }[] = ([
+    { key: 'pea'     as Tab, label: 'Actions & Fonds', total: peaTotal },
+    { key: 'livrets' as Tab, label: 'Livrets',          total: livretsTotal },
+    { key: 'crypto'  as Tab, label: 'Crypto',           total: cryptoTotal },
+    { key: 'immo'    as Tab, label: 'Immobilier',       total: immoTotal },
+  ] as { key: Tab; label: string; total: number }[]).sort((a, b) => b.total - a.total)
 
   // Treemap : une tuile par catégorie (pas par actif individuel)
   const treemapItems: TreemapItem[] = TABS

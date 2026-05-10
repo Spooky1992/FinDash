@@ -47,7 +47,7 @@ function SummaryBar({ moves }: { moves: CapitalMove[] }) {
     dividends  > 0 ? `${fmt(dividends)} dividendes` : '',
   ].filter(Boolean).join(' · ') || '—'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+    <div className="journal-kpis">
       {[
         { label: 'Capital apporté',    val: fmt(deposits),    color: 'oklch(65% 0.18 148)', sub: `dont ${fmt(withdrawals)} retirés` },
         { label: 'Capital net',        val: fmt(deposits - withdrawals), color: '#e8e8f2', sub: null },
@@ -194,7 +194,8 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
             <div key={t.ticker} style={{ border: '1px solid #252535', borderRadius: 10, overflow: 'hidden' }}>
               <div
                 onClick={() => setExpanded(e => e === t.ticker ? null : t.ticker)}
-                style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', cursor: 'pointer', background: isOpen ? '#1c1c27' : 'transparent' }}
+                className="journal-ticker-header"
+                style={{ background: isOpen ? '#1c1c27' : 'transparent' }}
                 onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#1c1c27' }}
                 onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}>
 
@@ -208,7 +209,7 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
                 </div>
 
                 {/* Stats */}
-                <div style={{ display: 'flex', gap: 20, flex: 1, flexWrap: 'wrap' }}>
+                <div className="journal-ticker-stats">
                   <div>
                     <div style={{ fontSize: 10, color: '#636385' }}>PRU moyen</div>
                     <div style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{t.avgBuyPrice.toFixed(4)}</div>
@@ -265,7 +266,7 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
 
               {/* Détail */}
               {isOpen && (
-                <div style={{ padding: '12px 16px', borderTop: '1px solid #252535', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="journal-ticker-detail" style={{ padding: '12px 16px', borderTop: '1px solid #252535' }}>
                   <div>
                     <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, marginBottom: 8 }}>ACHATS</div>
                     {t.buys.map((b, i) => (
@@ -350,7 +351,7 @@ function MoveForm({
 
   return (
     <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+      <div className="journal-form-grid">
         <div><label style={labelStyle}>Date</label><input type="date" value={form.date} onChange={set('date')} style={inputStyle} required /></div>
         <div><label style={labelStyle}>Type</label>
           <select value={form.type} onChange={set('type')} style={inputStyle}>
@@ -371,14 +372,14 @@ function MoveForm({
       </div>
 
       {isTrade && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="journal-form-trade">
           <div><label style={labelStyle}>Ticker</label><input placeholder="ex: AAPL, BTC…" value={form.ticker} onChange={set('ticker')} style={inputStyle} /></div>
           <div><label style={labelStyle}>Quantité</label><input type="number" step="any" min="0" placeholder="0" value={form.quantity} onChange={set('quantity')} style={inputStyle} /></div>
           <div><label style={labelStyle}>Prix unitaire</label><input type="number" step="any" min="0" placeholder="0.00" value={form.priceUnit} onChange={set('priceUnit')} style={inputStyle} /></div>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: isTrade && isSell ? '2fr 1fr 1fr' : '2fr 1fr', gap: 12 }}>
+      <div className="journal-form-main" style={{ gridTemplateColumns: isTrade && isSell ? '2fr 1fr 1fr' : '2fr 1fr' }}>
         <div><label style={labelStyle}>Libellé (optionnel)</label><input placeholder={TYPE_LABELS[form.type] + (form.ticker ? ` ${form.ticker}` : '')} value={form.label} onChange={set('label')} style={inputStyle} /></div>
         <div><label style={labelStyle}>Montant ({form.currency})</label><input type="number" step="any" min="0.01" placeholder="0.00" value={form.amount} onChange={set('amount')} style={inputStyle} required /></div>
         {isSell && <div><label style={labelStyle}>P&L réalisé ({form.currency})</label><input type="number" step="any" placeholder="0.00" value={form.pnl} onChange={set('pnl')} style={inputStyle} /></div>}
@@ -390,7 +391,7 @@ function MoveForm({
 
       {err && <div style={{ fontSize: 12, color: 'oklch(62% 0.20 25)' }}>{err}</div>}
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+      <div className="journal-form-actions">
         <button type="button" onClick={onCancel} style={{ padding: '9px 20px', borderRadius: 8, background: 'transparent', border: '1px solid #252535', color: '#636385', cursor: 'pointer', fontFamily: 'Inter', fontSize: 13 }}>Annuler</button>
         <button type="submit" disabled={saving} style={{ padding: '9px 20px', borderRadius: 8, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', cursor: saving ? 'default' : 'pointer', fontFamily: 'Inter', fontWeight: 600, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
           {saving ? 'Enregistrement…' : submitLabel}
@@ -543,7 +544,7 @@ export default function JournalPage() {
       <AddForm onAdded={load} />
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="journal-filters">
         <span style={{ fontSize: 11, color: '#636385', marginRight: 4 }}>Type :</span>
         {(['all', ...TYPES] as string[]).map(t => (
           <button key={t} onClick={() => setFT(t)} style={pillBtn(filterType === t)}>
