@@ -4,14 +4,15 @@ import { cardCss, fmt } from '@/lib/utils'
 import type { CapitalMove } from '@/lib/types'
 
 const TYPE_LABELS: Record<string, string> = {
-  deposit: 'Dépôt', withdrawal: 'Retrait', buy: 'Achat', sell: 'Vente',
+  deposit: 'Dépôt', withdrawal: 'Retrait', buy: 'Achat', sell: 'Vente', interest: 'Intérêts',
 }
 const TYPE_COLORS: Record<string, string> = {
   deposit: 'oklch(65% 0.18 148)', withdrawal: 'oklch(62% 0.20 25)',
   buy: 'oklch(63% 0.19 250)', sell: 'oklch(68% 0.17 55)',
+  interest: 'oklch(78% 0.16 80)',
 }
 const ACCOUNTS = ['PEA', 'CTO', 'Crypto'] as const
-const TYPES    = ['deposit', 'withdrawal', 'buy', 'sell'] as const
+const TYPES    = ['deposit', 'withdrawal', 'buy', 'sell', 'interest'] as const
 
 const inputStyle: React.CSSProperties = {
   background: '#1c1c27', border: '1px solid #252535', borderRadius: 8,
@@ -35,14 +36,16 @@ function SummaryBar({ moves }: { moves: CapitalMove[] }) {
   const withdrawals = moves.filter(m => m.type === 'withdrawal').reduce((s, m) => s + m.amount, 0)
   const totalBuys   = moves.filter(m => m.type === 'buy').reduce((s, m) => s + m.amount, 0)
   const totalSells  = moves.filter(m => m.type === 'sell').reduce((s, m) => s + m.amount, 0)
-  const netInvested = totalBuys - totalSells  // capital réellement immobilisé
+  const netInvested = totalBuys - totalSells
   const realised    = moves.filter(m => m.type === 'sell' && m.pnl != null).reduce((s, m) => s + (m.pnl ?? 0), 0)
+  const interests   = moves.filter(m => m.type === 'interest').reduce((s, m) => s + m.amount, 0)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
       {[
         { label: 'Capital apporté',    val: fmt(deposits),    color: 'oklch(65% 0.18 148)', sub: `dont ${fmt(withdrawals)} retirés` },
         { label: 'Capital net',        val: fmt(deposits - withdrawals), color: '#e8e8f2', sub: null },
         { label: 'Capital immobilisé', val: fmt(Math.max(0, netInvested)), color: 'oklch(63% 0.19 250)', sub: `${fmt(totalBuys)} achetés · ${fmt(totalSells)} récupérés` },
+        { label: 'Intérêts perçus',    val: fmt(interests),   color: 'oklch(78% 0.16 80)', sub: `${moves.filter(m => m.type === 'interest').length} versement${moves.filter(m => m.type === 'interest').length > 1 ? 's' : ''}` },
         { label: 'P&L réalisé',        val: (realised >= 0 ? '+' : '') + fmt(realised), color: realised >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', sub: `${moves.filter(m => m.type === 'sell').length} ventes` },
       ].map(k => (
         <div key={k.label} style={{ ...cardCss, padding: '16px 20px' }}>
@@ -328,6 +331,7 @@ function MoveForm({
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [k]: e.target.value })
   const isTrade = form.type === 'buy' || form.type === 'sell'
+  const isSell  = form.type === 'sell'
 
   useEffect(() => {
     if (!isTrade) return
@@ -367,10 +371,10 @@ function MoveForm({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: isTrade && form.type === 'sell' ? '2fr 1fr 1fr' : '2fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isTrade && isSell ? '2fr 1fr 1fr' : '2fr 1fr', gap: 12 }}>
         <div><label style={labelStyle}>Libellé (optionnel)</label><input placeholder={TYPE_LABELS[form.type] + (form.ticker ? ` ${form.ticker}` : '')} value={form.label} onChange={set('label')} style={inputStyle} /></div>
         <div><label style={labelStyle}>Montant ({form.currency})</label><input type="number" step="any" min="0.01" placeholder="0.00" value={form.amount} onChange={set('amount')} style={inputStyle} required /></div>
-        {form.type === 'sell' && <div><label style={labelStyle}>P&L réalisé ({form.currency})</label><input type="number" step="any" placeholder="0.00" value={form.pnl} onChange={set('pnl')} style={inputStyle} /></div>}
+        {isSell && <div><label style={labelStyle}>P&L réalisé ({form.currency})</label><input type="number" step="any" placeholder="0.00" value={form.pnl} onChange={set('pnl')} style={inputStyle} /></div>}
       </div>
 
       <div><label style={labelStyle}>Notes (optionnel)</label>
