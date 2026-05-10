@@ -33,15 +33,17 @@ function AccountBadge({ account }: { account: string }) {
 function SummaryBar({ moves }: { moves: CapitalMove[] }) {
   const deposits    = moves.filter(m => m.type === 'deposit').reduce((s, m) => s + m.amount, 0)
   const withdrawals = moves.filter(m => m.type === 'withdrawal').reduce((s, m) => s + m.amount, 0)
-  const invested    = moves.filter(m => m.type === 'buy').reduce((s, m) => s + m.amount, 0)
+  const totalBuys   = moves.filter(m => m.type === 'buy').reduce((s, m) => s + m.amount, 0)
+  const totalSells  = moves.filter(m => m.type === 'sell').reduce((s, m) => s + m.amount, 0)
+  const netInvested = totalBuys - totalSells  // capital réellement immobilisé
   const realised    = moves.filter(m => m.type === 'sell' && m.pnl != null).reduce((s, m) => s + (m.pnl ?? 0), 0)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       {[
-        { label: 'Capital apporté',  val: fmt(deposits),   color: 'oklch(65% 0.18 148)', sub: `dont ${fmt(withdrawals)} retirés` },
-        { label: 'Capital net',      val: fmt(deposits - withdrawals), color: '#e8e8f2', sub: null },
-        { label: 'Total investi',    val: fmt(invested),   color: 'oklch(63% 0.19 250)', sub: `${moves.filter(m => m.type === 'buy').length} achats` },
-        { label: 'P&L réalisé',      val: (realised >= 0 ? '+' : '') + fmt(realised), color: realised >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', sub: `${moves.filter(m => m.type === 'sell').length} ventes` },
+        { label: 'Capital apporté',    val: fmt(deposits),    color: 'oklch(65% 0.18 148)', sub: `dont ${fmt(withdrawals)} retirés` },
+        { label: 'Capital net',        val: fmt(deposits - withdrawals), color: '#e8e8f2', sub: null },
+        { label: 'Capital immobilisé', val: fmt(Math.max(0, netInvested)), color: 'oklch(63% 0.19 250)', sub: `${fmt(totalBuys)} achetés · ${fmt(totalSells)} récupérés` },
+        { label: 'P&L réalisé',        val: (realised >= 0 ? '+' : '') + fmt(realised), color: realised >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', sub: `${moves.filter(m => m.type === 'sell').length} ventes` },
       ].map(k => (
         <div key={k.label} style={{ ...cardCss, padding: '16px 20px' }}>
           <div style={{ fontSize: 11, color: '#636385', marginBottom: 4 }}>{k.label}</div>
@@ -56,38 +58,36 @@ function SummaryBar({ moves }: { moves: CapitalMove[] }) {
 // ── P&L par ticker (FIFO) ─────────────────────────────────────────────────────
 interface TickerPnL {
   ticker: string
-  buys:   { date: string; qty: number; price: number; amount: number }[]
-  sells:  { date: string; qty: number; price: number; amount: number; pnlManual: number | null }[]
-  totalBought:   number   // quantité totale achetée
-  totalSold:     number   // quantité totale vendue
-  avgBuyPrice:   number   // PRU moyen pondéré
-  realizedPnL:   number   // P&L calculé (FIFO)
-  manualPnL:     number | null // P&L saisi manuellement (si dispo)
-  investedEur:   number   // montant total investi
-  recoveredEur:  number   // montant total récupéré
-  stillHeld:     number   // quantité encore en portefeuille
+  buys:  { date: string; qty: number; price: number; amount: number }[]
+  sells: { date: string; qty: number; price: number; amount: number; pnlManual: number | null }[]
+  totalBought:  number
+  totalSold:    number
+  avgBuyPrice:  number
+  realizedPnL:  number
+  manualPnL:    number | null
+  investedEur:  number   // total achats
+  recoveredEur: number   // total ventes
+  netInvested:  number   // investedEur - recoveredEur (capital réellement immobilisé)
+  stillHeld:    number
 }
 
 function computeTickerPnL(moves: CapitalMove[]): TickerPnL[] {
   const tickers = [...new Set(moves.filter(m => m.ticker).map(m => m.ticker!))]
   return tickers.map(ticker => {
-    const tickerMoves = moves.filter(m => m.ticker === ticker).sort((a, b) => a.date.localeCompare(b.date))
-    const buys  = tickerMoves.filter(m => m.type === 'buy'  && m.quantity != null && m.quantity > 0)
-    const sells = tickerMoves.filter(m => m.type === 'sell' && m.quantity != null && m.quantity > 0)
+    const tm    = moves.filter(m => m.ticker === ticker).sort((a, b) => a.date.localeCompare(b.date))
+    const buys  = tm.filter(m => m.type === 'buy'  && m.quantity != null && m.quantity > 0)
+    const sells = tm.filter(m => m.type === 'sell' && m.quantity != null && m.quantity > 0)
 
-    // FIFO queue
-    const queue = buys.map(b => ({ qty: b.quantity!, price: b.amount / b.quantity!, remaining: b.quantity! }))
+    const queue = buys.map(b => ({ price: b.amount / b.quantity!, remaining: b.quantity! }))
     let realizedPnL = 0
-
     for (const sell of sells) {
-      let qtyToSell = sell.quantity!
-      const sellPriceUnit = sell.amount / sell.quantity!
-      while (qtyToSell > 0 && queue.length > 0) {
-        const lot = queue[0]
-        const taken = Math.min(lot.remaining, qtyToSell)
-        realizedPnL += taken * (sellPriceUnit - lot.price)
-        lot.remaining -= taken
-        qtyToSell    -= taken
+      let rem = sell.quantity!
+      const sp = sell.amount / sell.quantity!
+      while (rem > 0 && queue.length > 0) {
+        const lot   = queue[0]
+        const taken = Math.min(lot.remaining, rem)
+        realizedPnL += taken * (sp - lot.price)
+        lot.remaining -= taken; rem -= taken
         if (lot.remaining <= 0) queue.shift()
       }
     }
@@ -101,6 +101,7 @@ function computeTickerPnL(moves: CapitalMove[]): TickerPnL[] {
 
     return {
       ticker, avgBuyPrice, totalBought, totalSold, investedEur, recoveredEur,
+      netInvested: investedEur - recoveredEur,
       stillHeld: totalBought - totalSold,
       realizedPnL, manualPnL: manualPnLSum,
       buys:  buys.map(b => ({ date: b.date, qty: b.quantity!, price: b.amount / b.quantity!, amount: b.amount })),
@@ -110,85 +111,149 @@ function computeTickerPnL(moves: CapitalMove[]): TickerPnL[] {
 }
 
 function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded]   = useState<string | null>(null)
+  const [livePrices, setLive]     = useState<Record<string, number>>({})
+  const [fetchingLive, setFetch]  = useState(false)
+
   const data = computeTickerPnL(moves)
   if (data.length === 0) return null
 
+  const tickersWithHoldings = data.filter(t => t.stillHeld > 0).map(t => t.ticker)
+
+  async function fetchLive() {
+    if (tickersWithHoldings.length === 0) return
+    setFetch(true)
+    const results: Record<string, number> = {}
+    await Promise.all(tickersWithHoldings.map(async ticker => {
+      try {
+        const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
+        const d = await r.json()
+        if (d.price) results[ticker] = d.price
+      } catch {}
+    }))
+    setLive(results); setFetch(false)
+  }
+
   const totalRealized = data.reduce((s, t) => s + t.realizedPnL, 0)
+  const totalLatent   = data.reduce((s, t) => {
+    if (t.stillHeld <= 0 || !livePrices[t.ticker]) return s
+    return s + t.stillHeld * (livePrices[t.ticker] - t.avgBuyPrice)
+  }, 0)
+  const hasLive = Object.keys(livePrices).length > 0
 
   return (
     <div style={cardCss}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#e8e8f2' }}>Analyse P&L par ticker</div>
-          <div style={{ fontSize: 11, color: '#636385', marginTop: 2 }}>Calcul FIFO automatique à partir des achats/ventes du journal</div>
+          <div style={{ fontSize: 11, color: '#636385', marginTop: 2 }}>Calcul FIFO automatique · clic sur un ticker pour le détail</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#636385' }}>P&L réalisé total</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: totalRealized >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-            {totalRealized >= 0 ? '+' : ''}{fmt(totalRealized)}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+          {tickersWithHoldings.length > 0 && (
+            <button onClick={fetchLive} disabled={fetchingLive} style={{ padding: '5px 14px', borderRadius: 7, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600, background: '#1c1c27', border: '1px solid #252535', color: '#636385', opacity: fetchingLive ? 0.5 : 1 }}>
+              {fetchingLive ? 'Chargement…' : '↻ Prix live'}
+            </button>
+          )}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 11, color: '#636385' }}>P&L réalisé</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: totalRealized >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+              {totalRealized >= 0 ? '+' : ''}{fmt(totalRealized)}
+            </div>
           </div>
+          {hasLive && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: '#636385' }}>P&L latent</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: totalLatent >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                {totalLatent >= 0 ? '+' : ''}{fmt(totalLatent)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {data.map(t => {
-          const pnlColor = t.realizedPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)'
-          const isOpen   = expanded === t.ticker
-          const pnlPct   = t.investedEur > 0 ? (t.realizedPnL / t.investedEur) * 100 : 0
+          const isOpen    = expanded === t.ticker
+          const livePrice = livePrices[t.ticker]
+          const latentPnL = t.stillHeld > 0 && livePrice ? t.stillHeld * (livePrice - t.avgBuyPrice) : null
+          const latentPct = latentPnL != null && t.netInvested > 0 ? (latentPnL / t.netInvested) * 100 : null
+          const realPct   = t.investedEur > 0 ? (t.realizedPnL / t.investedEur) * 100 : 0
 
           return (
             <div key={t.ticker} style={{ border: '1px solid #252535', borderRadius: 10, overflow: 'hidden' }}>
-              {/* Row header */}
               <div
                 onClick={() => setExpanded(e => e === t.ticker ? null : t.ticker)}
                 style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', cursor: 'pointer', background: isOpen ? '#1c1c27' : 'transparent' }}
                 onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#1c1c27' }}
                 onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}>
 
-                {/* Ticker */}
-                <div style={{ minWidth: 80 }}>
+                {/* Ticker + position restante */}
+                <div style={{ minWidth: 90 }}>
                   <span style={{ fontWeight: 700, fontSize: 13, color: '#e8e8f2' }}>{t.ticker}</span>
-                  {t.stillHeld > 0 && <div style={{ fontSize: 10, color: '#636385', marginTop: 1 }}>{t.stillHeld.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} encore en pf</div>}
+                  {t.stillHeld > 0
+                    ? <div style={{ fontSize: 10, color: '#636385', marginTop: 1 }}>{t.stillHeld.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} en pf</div>
+                    : <div style={{ fontSize: 10, color: '#3a3a50', marginTop: 1 }}>Position clôturée</div>
+                  }
                 </div>
 
                 {/* Stats */}
-                <div style={{ display: 'flex', gap: 24, flex: 1, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 20, flex: 1, flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: 10, color: '#636385' }}>PRU moyen</div>
                     <div style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{t.avgBuyPrice.toFixed(4)}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, color: '#636385' }}>Acheté</div>
-                    <div style={{ fontSize: 12, color: '#e8e8f2' }}>{t.totalBought.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} unités · {fmt(t.investedEur)}</div>
+                    <div style={{ fontSize: 10, color: '#636385' }}>Investi</div>
+                    <div style={{ fontSize: 12, color: '#e8e8f2' }}>{fmt(t.investedEur)}</div>
                   </div>
                   {t.totalSold > 0 && (
                     <div>
-                      <div style={{ fontSize: 10, color: '#636385' }}>Vendu</div>
-                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>{t.totalSold.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} unités · {fmt(t.recoveredEur)}</div>
+                      <div style={{ fontSize: 10, color: '#636385' }}>Récupéré</div>
+                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>{fmt(t.recoveredEur)}</div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 10, color: '#636385' }}>Capital net immobilisé</div>
+                    <div style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{fmt(Math.max(0, t.netInvested))}</div>
+                  </div>
+                  {livePrice && t.stillHeld > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, color: '#636385' }}>Prix live</div>
+                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>{livePrice.toFixed(4)}</div>
                     </div>
                   )}
                 </div>
 
-                {/* P&L */}
-                {t.totalSold > 0 ? (
-                  <div style={{ textAlign: 'right', minWidth: 120 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: pnlColor }}>
-                      {t.realizedPnL >= 0 ? '+' : ''}{fmt(t.realizedPnL)}
+                {/* P&L colonne droite */}
+                <div style={{ textAlign: 'right', minWidth: 130 }}>
+                  {t.totalSold > 0 && (
+                    <div style={{ marginBottom: latentPnL != null ? 4 : 0 }}>
+                      <div style={{ fontSize: 12, color: '#636385' }}>Réalisé</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: t.realizedPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                        {t.realizedPnL >= 0 ? '+' : ''}{fmt(t.realizedPnL)}
+                      </div>
+                      <div style={{ fontSize: 10, color: t.realizedPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{realPct >= 0 ? '+' : ''}{realPct.toFixed(2)}%</div>
                     </div>
-                    <div style={{ fontSize: 11, color: pnlColor }}>{pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%</div>
-                    {t.manualPnL != null && Math.abs(t.manualPnL - t.realizedPnL) > 0.05 && (
-                      <div style={{ fontSize: 10, color: '#636385', marginTop: 2 }} title="P&L saisi manuellement dans les ventes">Manuel : {t.manualPnL >= 0 ? '+' : ''}{fmt(t.manualPnL)}</div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: '#636385', minWidth: 120, textAlign: 'right' }}>Aucune vente</div>
-                )}
+                  )}
+                  {latentPnL != null && (
+                    <div>
+                      <div style={{ fontSize: 12, color: '#636385' }}>Latent</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: latentPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                        {latentPnL >= 0 ? '+' : ''}{fmt(latentPnL)}
+                      </div>
+                      {latentPct != null && <div style={{ fontSize: 10, color: latentPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{latentPct >= 0 ? '+' : ''}{latentPct.toFixed(2)}%</div>}
+                    </div>
+                  )}
+                  {t.totalSold === 0 && latentPnL == null && (
+                    <span style={{ fontSize: 11, color: '#636385' }}>↻ Prix live</span>
+                  )}
+                </div>
 
                 <span style={{ color: '#636385', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</span>
               </div>
 
-              {/* Detail */}
+              {/* Détail */}
               {isOpen && (
                 <div style={{ padding: '12px 16px', borderTop: '1px solid #252535', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div>
@@ -207,7 +272,7 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
                       <div style={{ fontSize: 12, color: '#3a3a50' }}>Aucune vente enregistrée</div>
                     ) : t.sells.map((s, i) => {
                       const costFifo = t.avgBuyPrice * s.qty
-                      const pnlRow  = s.amount - costFifo
+                      const pnlRow   = s.amount - costFifo
                       return (
                         <div key={i} style={{ marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #1c1c27' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#e8e8f2' }}>
@@ -216,7 +281,7 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
                             <span style={{ fontWeight: 600 }}>{fmt(s.amount)}</span>
                           </div>
                           <div style={{ textAlign: 'right', fontSize: 11, color: pnlRow >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', marginTop: 2 }}>
-                            P&L : {pnlRow >= 0 ? '+' : ''}{fmt(pnlRow)}
+                            P&L FIFO : {pnlRow >= 0 ? '+' : ''}{fmt(pnlRow)}
                             {s.pnlManual != null && <span style={{ color: '#636385', marginLeft: 6 }}>(manuel : {s.pnlManual >= 0 ? '+' : ''}{fmt(s.pnlManual)})</span>}
                           </div>
                         </div>
