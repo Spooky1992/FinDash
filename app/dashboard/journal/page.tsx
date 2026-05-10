@@ -53,6 +53,186 @@ function SummaryBar({ moves }: { moves: CapitalMove[] }) {
   )
 }
 
+// ── P&L par ticker (FIFO) ─────────────────────────────────────────────────────
+interface TickerPnL {
+  ticker: string
+  buys:   { date: string; qty: number; price: number; amount: number }[]
+  sells:  { date: string; qty: number; price: number; amount: number; pnlManual: number | null }[]
+  totalBought:   number   // quantité totale achetée
+  totalSold:     number   // quantité totale vendue
+  avgBuyPrice:   number   // PRU moyen pondéré
+  realizedPnL:   number   // P&L calculé (FIFO)
+  manualPnL:     number | null // P&L saisi manuellement (si dispo)
+  investedEur:   number   // montant total investi
+  recoveredEur:  number   // montant total récupéré
+  stillHeld:     number   // quantité encore en portefeuille
+}
+
+function computeTickerPnL(moves: CapitalMove[]): TickerPnL[] {
+  const tickers = [...new Set(moves.filter(m => m.ticker).map(m => m.ticker!))]
+  return tickers.map(ticker => {
+    const tickerMoves = moves.filter(m => m.ticker === ticker).sort((a, b) => a.date.localeCompare(b.date))
+    const buys  = tickerMoves.filter(m => m.type === 'buy'  && m.quantity != null && m.quantity > 0)
+    const sells = tickerMoves.filter(m => m.type === 'sell' && m.quantity != null && m.quantity > 0)
+
+    // FIFO queue
+    const queue = buys.map(b => ({ qty: b.quantity!, price: b.amount / b.quantity!, remaining: b.quantity! }))
+    let realizedPnL = 0
+
+    for (const sell of sells) {
+      let qtyToSell = sell.quantity!
+      const sellPriceUnit = sell.amount / sell.quantity!
+      while (qtyToSell > 0 && queue.length > 0) {
+        const lot = queue[0]
+        const taken = Math.min(lot.remaining, qtyToSell)
+        realizedPnL += taken * (sellPriceUnit - lot.price)
+        lot.remaining -= taken
+        qtyToSell    -= taken
+        if (lot.remaining <= 0) queue.shift()
+      }
+    }
+
+    const totalBought  = buys.reduce((s, b) => s + b.quantity!, 0)
+    const totalSold    = sells.reduce((s, b) => s + b.quantity!, 0)
+    const investedEur  = buys.reduce((s, b) => s + b.amount, 0)
+    const recoveredEur = sells.reduce((s, b) => s + b.amount, 0)
+    const avgBuyPrice  = totalBought > 0 ? investedEur / totalBought : 0
+    const manualPnLSum = sells.some(s => s.pnl != null) ? sells.reduce((s, b) => s + (b.pnl ?? 0), 0) : null
+
+    return {
+      ticker, avgBuyPrice, totalBought, totalSold, investedEur, recoveredEur,
+      stillHeld: totalBought - totalSold,
+      realizedPnL, manualPnL: manualPnLSum,
+      buys:  buys.map(b => ({ date: b.date, qty: b.quantity!, price: b.amount / b.quantity!, amount: b.amount })),
+      sells: sells.map(s => ({ date: s.date, qty: s.quantity!, price: s.amount / s.quantity!, amount: s.amount, pnlManual: s.pnl ?? null })),
+    }
+  }).filter(t => t.buys.length > 0 || t.sells.length > 0)
+}
+
+function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const data = computeTickerPnL(moves)
+  if (data.length === 0) return null
+
+  const totalRealized = data.reduce((s, t) => s + t.realizedPnL, 0)
+
+  return (
+    <div style={cardCss}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#e8e8f2' }}>Analyse P&L par ticker</div>
+          <div style={{ fontSize: 11, color: '#636385', marginTop: 2 }}>Calcul FIFO automatique à partir des achats/ventes du journal</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: '#636385' }}>P&L réalisé total</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: totalRealized >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+            {totalRealized >= 0 ? '+' : ''}{fmt(totalRealized)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.map(t => {
+          const pnlColor = t.realizedPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)'
+          const isOpen   = expanded === t.ticker
+          const pnlPct   = t.investedEur > 0 ? (t.realizedPnL / t.investedEur) * 100 : 0
+
+          return (
+            <div key={t.ticker} style={{ border: '1px solid #252535', borderRadius: 10, overflow: 'hidden' }}>
+              {/* Row header */}
+              <div
+                onClick={() => setExpanded(e => e === t.ticker ? null : t.ticker)}
+                style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', cursor: 'pointer', background: isOpen ? '#1c1c27' : 'transparent' }}
+                onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#1c1c27' }}
+                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}>
+
+                {/* Ticker */}
+                <div style={{ minWidth: 80 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: '#e8e8f2' }}>{t.ticker}</span>
+                  {t.stillHeld > 0 && <div style={{ fontSize: 10, color: '#636385', marginTop: 1 }}>{t.stillHeld.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} encore en pf</div>}
+                </div>
+
+                {/* Stats */}
+                <div style={{ display: 'flex', gap: 24, flex: 1, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#636385' }}>PRU moyen</div>
+                    <div style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{t.avgBuyPrice.toFixed(4)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#636385' }}>Acheté</div>
+                    <div style={{ fontSize: 12, color: '#e8e8f2' }}>{t.totalBought.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} unités · {fmt(t.investedEur)}</div>
+                  </div>
+                  {t.totalSold > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, color: '#636385' }}>Vendu</div>
+                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>{t.totalSold.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} unités · {fmt(t.recoveredEur)}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* P&L */}
+                {t.totalSold > 0 ? (
+                  <div style={{ textAlign: 'right', minWidth: 120 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: pnlColor }}>
+                      {t.realizedPnL >= 0 ? '+' : ''}{fmt(t.realizedPnL)}
+                    </div>
+                    <div style={{ fontSize: 11, color: pnlColor }}>{pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%</div>
+                    {t.manualPnL != null && Math.abs(t.manualPnL - t.realizedPnL) > 0.05 && (
+                      <div style={{ fontSize: 10, color: '#636385', marginTop: 2 }} title="P&L saisi manuellement dans les ventes">Manuel : {t.manualPnL >= 0 ? '+' : ''}{fmt(t.manualPnL)}</div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#636385', minWidth: 120, textAlign: 'right' }}>Aucune vente</div>
+                )}
+
+                <span style={{ color: '#636385', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</span>
+              </div>
+
+              {/* Detail */}
+              {isOpen && (
+                <div style={{ padding: '12px 16px', borderTop: '1px solid #252535', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, marginBottom: 8 }}>ACHATS</div>
+                    {t.buys.map((b, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#e8e8f2', marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #1c1c27' }}>
+                        <span style={{ color: '#636385' }}>{new Date(b.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        <span>{b.qty.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} × {b.price.toFixed(4)}</span>
+                        <span style={{ fontWeight: 600 }}>{fmt(b.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, marginBottom: 8 }}>VENTES</div>
+                    {t.sells.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#3a3a50' }}>Aucune vente enregistrée</div>
+                    ) : t.sells.map((s, i) => {
+                      const costFifo = t.avgBuyPrice * s.qty
+                      const pnlRow  = s.amount - costFifo
+                      return (
+                        <div key={i} style={{ marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #1c1c27' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#e8e8f2' }}>
+                            <span style={{ color: '#636385' }}>{new Date(s.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            <span>{s.qty.toLocaleString('fr-FR', { maximumFractionDigits: 6 })} × {s.price.toFixed(4)}</span>
+                            <span style={{ fontWeight: 600 }}>{fmt(s.amount)}</span>
+                          </div>
+                          <div style={{ textAlign: 'right', fontSize: 11, color: pnlRow >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', marginTop: 2 }}>
+                            P&L : {pnlRow >= 0 ? '+' : ''}{fmt(pnlRow)}
+                            {s.pnlManual != null && <span style={{ color: '#636385', marginLeft: 6 }}>(manuel : {s.pnlManual >= 0 ? '+' : ''}{fmt(s.pnlManual)})</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Shared form fields ────────────────────────────────────────────────────────
 interface FormState {
   date: string; type: string; account: string; ticker: string
@@ -281,6 +461,8 @@ export default function JournalPage() {
       </div>
 
       {!loading && <SummaryBar moves={moves} />}
+
+      {!loading && moves.some(m => m.ticker) && <TickerPnLSection moves={moves} />}
 
       <AddForm onAdded={load} />
 
