@@ -4,15 +4,16 @@ import { cardCss, fmt } from '@/lib/utils'
 import type { CapitalMove } from '@/lib/types'
 
 const TYPE_LABELS: Record<string, string> = {
-  deposit: 'Dépôt', withdrawal: 'Retrait', buy: 'Achat', sell: 'Vente', interest: 'Intérêts',
+  deposit: 'Dépôt', withdrawal: 'Retrait', buy: 'Achat', sell: 'Vente',
+  interest: 'Intérêts', dividend: 'Dividende',
 }
 const TYPE_COLORS: Record<string, string> = {
   deposit: 'oklch(65% 0.18 148)', withdrawal: 'oklch(62% 0.20 25)',
   buy: 'oklch(63% 0.19 250)', sell: 'oklch(68% 0.17 55)',
-  interest: 'oklch(78% 0.16 80)',
+  interest: 'oklch(78% 0.16 80)', dividend: 'oklch(75% 0.14 165)',
 }
 const ACCOUNTS = ['PEA', 'CTO', 'Crypto'] as const
-const TYPES    = ['deposit', 'withdrawal', 'buy', 'sell', 'interest'] as const
+const TYPES    = ['deposit', 'withdrawal', 'buy', 'sell', 'interest', 'dividend'] as const
 
 const inputStyle: React.CSSProperties = {
   background: '#1c1c27', border: '1px solid #252535', borderRadius: 8,
@@ -39,13 +40,19 @@ function SummaryBar({ moves }: { moves: CapitalMove[] }) {
   const netInvested = totalBuys - totalSells
   const realised    = moves.filter(m => m.type === 'sell' && m.pnl != null).reduce((s, m) => s + (m.pnl ?? 0), 0)
   const interests   = moves.filter(m => m.type === 'interest').reduce((s, m) => s + m.amount, 0)
+  const dividends   = moves.filter(m => m.type === 'dividend').reduce((s, m) => s + m.amount, 0)
+  const passiveIncome = interests + dividends
+  const passiveSub  = [
+    interests  > 0 ? `${fmt(interests)} intérêts`  : '',
+    dividends  > 0 ? `${fmt(dividends)} dividendes` : '',
+  ].filter(Boolean).join(' · ') || '—'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
       {[
         { label: 'Capital apporté',    val: fmt(deposits),    color: 'oklch(65% 0.18 148)', sub: `dont ${fmt(withdrawals)} retirés` },
         { label: 'Capital net',        val: fmt(deposits - withdrawals), color: '#e8e8f2', sub: null },
         { label: 'Capital immobilisé', val: fmt(Math.max(0, netInvested)), color: 'oklch(63% 0.19 250)', sub: `${fmt(totalBuys)} achetés · ${fmt(totalSells)} récupérés` },
-        { label: 'Intérêts perçus',    val: fmt(interests),   color: 'oklch(78% 0.16 80)', sub: `${moves.filter(m => m.type === 'interest').length} versement${moves.filter(m => m.type === 'interest').length > 1 ? 's' : ''}` },
+        { label: 'Revenus passifs',    val: fmt(passiveIncome), color: 'oklch(78% 0.16 80)', sub: passiveSub },
         { label: 'P&L réalisé',        val: (realised >= 0 ? '+' : '') + fmt(realised), color: realised >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', sub: `${moves.filter(m => m.type === 'sell').length} ventes` },
       ].map(k => (
         <div key={k.label} style={{ ...cardCss, padding: '16px 20px' }}>

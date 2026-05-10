@@ -52,7 +52,7 @@ export interface Portfolio {
 export interface CapitalMove {
   id: string
   date: string
-  type: 'deposit' | 'withdrawal' | 'buy' | 'sell' | 'interest'
+  type: 'deposit' | 'withdrawal' | 'buy' | 'sell' | 'interest' | 'dividend'
   account: 'PEA' | 'CTO' | 'Crypto'
   ticker?: string | null
   label: string

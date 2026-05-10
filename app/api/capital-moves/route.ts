@@ -6,7 +6,7 @@ import { capitalMoves } from '@/lib/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import crypto from 'crypto'
 
-const VALID_TYPES    = new Set(['deposit', 'withdrawal', 'buy', 'sell', 'interest'])
+const VALID_TYPES    = new Set(['deposit', 'withdrawal', 'buy', 'sell', 'interest', 'dividend'])
 const VALID_ACCOUNTS = new Set(['PEA', 'CTO', 'Crypto'])
 const DATE_RE        = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 const TICKER_RE      = /^[A-Z0-9=^._%-]{1,30}$/i
