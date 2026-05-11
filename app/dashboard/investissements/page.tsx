@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppData } from '@/hooks/useAppData'
-import { fmt, fmtPct, cardCss } from '@/lib/utils'
+import { fmt, fmtPct, cardCss, inputCss, btnCss } from '@/lib/utils'
+import type { Position, Portfolio } from '@/lib/types'
 
 const KNOWN_COINS: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
@@ -177,9 +178,10 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
-function PositionRow({ p, liveRaw, liveCurrency, usdToEur, color, selected, onSelect }: {
+function PositionRow({ p, liveRaw, liveCurrency, usdToEur, color, selected, onSelect, onEdit, onDelete }: {
   p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD'; purchaseEurUsd?: number }
-  liveRaw: number; liveCurrency: string; usdToEur: number; color: string; selected: boolean; onSelect: () => void
+  liveRaw: number; liveCurrency: string; usdToEur: number; color: string; selected: boolean
+  onSelect: () => void; onEdit: () => void; onDelete: () => void
 }) {
   // Conversion prix live selon la devise retournée par Yahoo (usdToEur = EUR=X = EUR pour 1 USD)
   const liveEur = liveCurrency === 'EUR' ? liveRaw
@@ -219,21 +221,76 @@ function PositionRow({ p, liveRaw, liveCurrency, usdToEur, color, selected, onSe
         <div style={{ fontSize: 13, fontWeight: 600, color: pnl >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{pnl >= 0 ? '+' : ''}{fmt(pnl)}</div>
         <div style={{ fontSize: 11, color: pct >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{fmtPct(pct)}</div>
       </td>
-      <td style={{ padding: '12px 10px', textAlign: 'right', fontSize: 14, color: '#636385' }}>{selected ? '▲' : '▼'}</td>
+      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+          <button onClick={e => { e.stopPropagation(); onEdit() }} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>✏</button>
+          <button onClick={e => { e.stopPropagation(); onDelete() }} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>🗑</button>
+          <span style={{ fontSize: 14, color: '#636385', width: 16 }}>{selected ? '▲' : '▼'}</span>
+        </div>
+      </td>
     </tr>
   )
 }
 
+function uid() { return `p-${Date.now()}-${Math.random().toString(36).slice(2,6)}` }
+type InvestTab = 'pea' | 'crypto'
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InvestissementsPage() {
-  const { portfolio, loading } = useAppData()
+  const { portfolio, savePortfolio, loading } = useAppData()
   const [prices, setPrices]         = useState<Record<string, number>>({})
   const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
   const [loadingPrices, setLoading] = useState(false)
   const [paused, setPaused]         = useState(false)
   const [elapsed, setElapsed]       = useState(0)
-  const [usdToEur, setUsdToEur]     = useState<number>(0.88) // EUR=X Yahoo = combien d'EUR pour 1 USD
+  const [usdToEur, setUsdToEur]     = useState<number>(0.88)
   const [selected, setSelected]     = useState<string | null>(null)
+  const [showForm, setShowForm]     = useState(false)
+  const [editItem, setEditItem]     = useState<Partial<Position> & { _type?: InvestTab; currency?: 'EUR' | 'USD' }>({})
+  const [fetchingRate, setFetchingRate] = useState(false)
+
+  async function fetchHistoricalRate(date: string) {
+    if (!date) return
+    setFetchingRate(true)
+    try {
+      const r = await fetch(`/api/prices/fxrate?date=${date}`)
+      const d = await r.json()
+      if (d.eurUsd) setEditItem(x => ({ ...x, purchaseEurUsd: d.eurUsd }))
+    } catch {}
+    setFetchingRate(false)
+  }
+
+  function openAdd(type: InvestTab) { setEditItem({ _type: type, currency: 'EUR' }); setShowForm(true) }
+  function openEdit(pos: Position, type: InvestTab) { setEditItem({ ...pos, _type: type }); setShowForm(true) }
+
+  async function saveItem() {
+    const p: Portfolio = JSON.parse(JSON.stringify(portfolio))
+    const t = editItem._type ?? 'pea'
+    const pos: Position = {
+      id: editItem.id || uid(),
+      ticker: editItem.ticker || '',
+      quantity: Number(editItem.quantity) || 0,
+      costPerUnit: Number(editItem.costPerUnit) || 0,
+      name: editItem.name,
+      currency: editItem.currency ?? 'EUR',
+      purchaseDate: editItem.purchaseDate,
+      purchaseEurUsd: editItem.purchaseEurUsd,
+    }
+    const arr = t === 'pea' ? p.pea.positions : p.crypto.positions
+    const idx = arr.findIndex(x => x.id === pos.id)
+    if (idx >= 0) arr[idx] = pos; else arr.push(pos)
+    if (t === 'pea') p.pea.positions = arr; else p.crypto.positions = arr
+    await savePortfolio(p)
+    setShowForm(false); setEditItem({})
+  }
+
+  async function deleteItem(id: string, type: InvestTab) {
+    const p: Portfolio = JSON.parse(JSON.stringify(portfolio))
+    if (type === 'pea') p.pea.positions = p.pea.positions.filter(x => x.id !== id)
+    else p.crypto.positions = p.crypto.positions.filter(x => x.id !== id)
+    await savePortfolio(p)
+    setSelected(null)
+  }
 
   const fetchAll = useCallback(async () => {
     if (loading) return
@@ -336,102 +393,180 @@ export default function InvestissementsPage() {
       </div>
 
       {/* Actions & ETF */}
-      {peaPositions.length > 0 && (
-        <div style={cardCss}>
-          <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16 }}>📈</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Actions & ETF</span>
-              <span style={{ fontSize: 13, color: '#636385' }}>{fmt(peaValue)}</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: peaValue - peaCost >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-              {peaValue - peaCost >= 0 ? '+' : ''}{fmt(peaValue - peaCost)} ({peaCost > 0 ? fmtPct((peaValue - peaCost) / peaCost * 100) : '—'}) en €
-            </span>
+      <div style={cardCss}>
+        <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>📈</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Actions & ETF</span>
+            {peaPositions.length > 0 && <span style={{ fontSize: 13, color: '#636385' }}>{fmt(peaValue)}</span>}
           </div>
-          <div className="table-scroll">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
-            <thead><tr>
-              {headers.map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {peaPositions.map(p => (
-                <PositionRow
-                  key={p.id} p={p}
-                  liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
-                  liveCurrency={liveCurrencies[p.ticker] ?? 'USD'}
-                  usdToEur={usdToEur}
-                  color={CAT_COLOR_PEA}
-                  selected={selected === p.id}
-                  onSelect={() => setSelected(s => s === p.id ? null : p.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {peaPositions.length > 0 && (
+              <span style={{ fontSize: 13, fontWeight: 600, color: peaValue - peaCost >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                {peaValue - peaCost >= 0 ? '+' : ''}{fmt(peaValue - peaCost)} ({peaCost > 0 ? fmtPct((peaValue - peaCost) / peaCost * 100) : '—'})
+              </span>
+            )}
+            <button onClick={() => openAdd('pea')} style={btnCss()}>+ Ajouter</button>
           </div>
-          {(() => {
-            const sel = peaPositions.find(p => p.id === selected)
-            return sel ? (
-              <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
-                <MiniChart ticker={sel.ticker} color={CAT_COLOR_PEA} costPerUnit={sel.costPerUnit} />
-              </div>
-            ) : null
-          })()}
         </div>
-      )}
+        {peaPositions.length > 0 && (
+          <>
+            <div className="table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+              <thead><tr>
+                {headers.map((h, i) => (
+                  <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {peaPositions.map(p => (
+                  <PositionRow
+                    key={p.id} p={p}
+                    liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                    liveCurrency={liveCurrencies[p.ticker] ?? 'USD'}
+                    usdToEur={usdToEur}
+                    color={CAT_COLOR_PEA}
+                    selected={selected === p.id}
+                    onSelect={() => setSelected(s => s === p.id ? null : p.id)}
+                    onEdit={() => openEdit(p, 'pea')}
+                    onDelete={() => deleteItem(p.id, 'pea')}
+                  />
+                ))}
+              </tbody>
+            </table>
+            </div>
+            {(() => {
+              const sel = peaPositions.find(p => p.id === selected)
+              return sel ? (
+                <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
+                  <MiniChart ticker={sel.ticker} color={CAT_COLOR_PEA} costPerUnit={sel.costPerUnit} />
+                </div>
+              ) : null
+            })()}
+          </>
+        )}
+        {peaPositions.length === 0 && <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucune position — cliquez sur + Ajouter</div>}
+      </div>
 
       {/* Crypto */}
-      {cryptoPositions.length > 0 && (
-        <div style={cardCss}>
-          <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16 }}>₿</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Crypto</span>
-              <span style={{ fontSize: 13, color: '#636385' }}>{fmt(cryptoValue)}</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: cryptoValue - cryptoCost >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-              {cryptoValue - cryptoCost >= 0 ? '+' : ''}{fmt(cryptoValue - cryptoCost)} ({cryptoCost > 0 ? fmtPct((cryptoValue - cryptoCost) / cryptoCost * 100) : '—'})
-            </span>
+      <div style={cardCss}>
+        <div className="invest-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>₿</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2' }}>Crypto</span>
+            {cryptoPositions.length > 0 && <span style={{ fontSize: 13, color: '#636385' }}>{fmt(cryptoValue)}</span>}
           </div>
-          <div className="table-scroll">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
-            <thead><tr>
-              {headers.map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {cryptoPositions.map(p => (
-                <PositionRow
-                  key={p.id} p={p}
-                  liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
-                  liveCurrency={liveCurrencies[p.ticker] ?? 'EUR'}
-                  usdToEur={usdToEur}
-                  color={CAT_COLOR_CRYPTO}
-                  selected={selected === p.id}
-                  onSelect={() => setSelected(s => s === p.id ? null : p.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {cryptoPositions.length > 0 && (
+              <span style={{ fontSize: 13, fontWeight: 600, color: cryptoValue - cryptoCost >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                {cryptoValue - cryptoCost >= 0 ? '+' : ''}{fmt(cryptoValue - cryptoCost)} ({cryptoCost > 0 ? fmtPct((cryptoValue - cryptoCost) / cryptoCost * 100) : '—'})
+              </span>
+            )}
+            <button onClick={() => openAdd('crypto')} style={btnCss()}>+ Ajouter</button>
           </div>
-          {(() => {
-            const sel = cryptoPositions.find(p => p.id === selected)
-            return sel ? (
-              <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
-                <MiniChart ticker={sel.ticker} color={CAT_COLOR_CRYPTO} costPerUnit={sel.costPerUnit} />
-              </div>
-            ) : null
-          })()}
         </div>
-      )}
+        {cryptoPositions.length > 0 && (
+          <>
+            <div className="table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+              <thead><tr>
+                {headers.map((h, i) => (
+                  <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {cryptoPositions.map(p => (
+                  <PositionRow
+                    key={p.id} p={p}
+                    liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
+                    liveCurrency={liveCurrencies[p.ticker] ?? 'EUR'}
+                    usdToEur={usdToEur}
+                    color={CAT_COLOR_CRYPTO}
+                    selected={selected === p.id}
+                    onSelect={() => setSelected(s => s === p.id ? null : p.id)}
+                    onEdit={() => openEdit(p, 'crypto')}
+                    onDelete={() => deleteItem(p.id, 'crypto')}
+                  />
+                ))}
+              </tbody>
+            </table>
+            </div>
+            {(() => {
+              const sel = cryptoPositions.find(p => p.id === selected)
+              return sel ? (
+                <div style={{ marginTop: 8, borderTop: '1px solid #252535', paddingTop: 12 }}>
+                  <MiniChart ticker={sel.ticker} color={CAT_COLOR_CRYPTO} costPerUnit={sel.costPerUnit} />
+                </div>
+              ) : null
+            })()}
+          </>
+        )}
+        {cryptoPositions.length === 0 && <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucune position — cliquez sur + Ajouter</div>}
+      </div>
 
-      {peaPositions.length === 0 && cryptoPositions.length === 0 && (
-        <div style={{ ...cardCss, textAlign: 'center', padding: 48 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📈</div>
-          <div style={{ color: '#e8e8f2', fontWeight: 600, marginBottom: 8 }}>Aucun investissement</div>
-          <div style={{ color: '#636385', fontSize: 13 }}>Ajoutez vos positions dans la page Patrimoine.</div>
+      {/* Modal */}
+      {showForm && (
+        <div className="modal-sheet-wrap">
+          <div className="modal-sheet" style={{ ...cardCss, width: 420, borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '90dvh', overflowY: 'auto', paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+            <div style={{ width: 36, height: 4, background: '#252535', borderRadius: 2, margin: '0 auto 4px' }} />
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>
+              {editItem.id ? 'Modifier' : 'Ajouter'} — {editItem._type === 'pea' ? 'Actions & ETF' : 'Crypto'}
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Ticker</label>
+              <input value={editItem.ticker ?? ''} onChange={e => setEditItem(x => ({ ...x, ticker: e.target.value.toUpperCase() }))} style={inputCss} placeholder="Ex: IWDA.AS, BTC" />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom (optionnel)</label>
+              <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Quantité</label>
+              <input type="number" step="any" value={editItem.quantity ?? ''} onChange={e => setEditItem(x => ({ ...x, quantity: parseFloat(e.target.value) }))} style={inputCss} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>Prix d&apos;achat moyen ({editItem.currency === 'USD' ? 'USD' : '€'})</label>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['EUR', 'USD'] as const).map(cur => (
+                    <button key={cur} type="button" onClick={() => setEditItem(x => ({ ...x, currency: cur }))}
+                      style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter',
+                        background: (editItem.currency ?? 'EUR') === cur ? 'oklch(63% 0.19 250)' : '#1c1c27',
+                        border: `1px solid ${(editItem.currency ?? 'EUR') === cur ? 'oklch(63% 0.19 250)' : '#252535'}`,
+                        color: (editItem.currency ?? 'EUR') === cur ? '#fff' : '#636385' }}>
+                      {cur}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input type="number" step="any" value={editItem.costPerUnit ?? ''} onChange={e => setEditItem(x => ({ ...x, costPerUnit: parseFloat(e.target.value) }))} style={inputCss} />
+              {editItem.currency === 'USD' && (editItem.costPerUnit ?? 0) > 0 && (() => {
+                const rate = editItem.purchaseEurUsd ?? usdToEur
+                return <div style={{ fontSize: 11, color: '#636385', marginTop: 5 }}>≈ {fmt((editItem.costPerUnit ?? 0) * rate)} au taux 1 USD = {rate.toFixed(4)} €{editItem.purchaseEurUsd ? <span style={{ color: 'oklch(65% 0.18 148)', marginLeft: 6 }}>taux historique</span> : null}</div>
+              })()}
+            </div>
+            {editItem.currency === 'USD' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>Date d&apos;achat</label>
+                  {editItem.purchaseEurUsd && <span style={{ fontSize: 11, color: 'oklch(65% 0.18 148)' }}>1 USD = {editItem.purchaseEurUsd.toFixed(4)} €</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="date" value={editItem.purchaseDate ?? ''} onChange={e => setEditItem(x => ({ ...x, purchaseDate: e.target.value, purchaseEurUsd: undefined }))} style={{ ...inputCss, flex: 1 }} />
+                  <button type="button" disabled={!editItem.purchaseDate || fetchingRate} onClick={() => fetchHistoricalRate(editItem.purchaseDate!)}
+                    style={{ padding: '0 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter',
+                      background: 'oklch(63% 0.19 250 / 0.15)', border: '1px solid oklch(63% 0.19 250 / 0.4)', color: 'oklch(63% 0.19 250)',
+                      opacity: !editItem.purchaseDate || fetchingRate ? 0.5 : 1 }}>
+                    {fetchingRate ? '…' : 'Taux historique'}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button onClick={() => { setShowForm(false); setEditItem({}) }} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'transparent', border: '1px solid #252535', color: '#636385', cursor: 'pointer', fontFamily: 'Inter', fontSize: 14, fontWeight: 600 }}>Annuler</button>
+              <button onClick={saveItem} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'Inter', fontSize: 14, fontWeight: 700 }}>Enregistrer</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
