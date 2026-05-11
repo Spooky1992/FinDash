@@ -92,12 +92,40 @@ function CompoundCalc() {
 
 function BudgetSim() {
   const [income, setIncome] = useState(3000)
+  const [ccRate, setCcRate] = useState(0)
+  const [months, setMonths] = useState(12)
+
   const savings50 = income * 0.5, savings30 = income * 0.3, savings20 = income * 0.2
+  const surplus = income - savings50 - savings30 - savings20
+
+  // Simulation du surplus accumulé sur N mois avec taux C/C mensuel
+  const surplusPoints = Array.from({ length: months + 1 }, (_, i) => {
+    const r = ccRate / 100 / 12
+    let total = 0
+    for (let m = 0; m < i; m++) {
+      total = (total + surplus) * (1 + r)
+    }
+    return { month: i, val: total }
+  })
+  const finalSurplus = surplusPoints[surplusPoints.length - 1].val
+  const withoutInterest = surplus * months
+  const interestGain = finalSurplus - withoutInterest
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Revenu mensuel net (€)</label>
-        <input type="number" step={100} min={0} value={income} onChange={e => setIncome(parseFloat(e.target.value) || 0)} style={inputCss} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <div>
+          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Revenu mensuel net (€)</label>
+          <input type="number" step={100} min={0} value={income} onChange={e => setIncome(parseFloat(e.target.value) || 0)} style={inputCss} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux C/C annuel (%)</label>
+          <input type="number" step={0.1} min={0} value={ccRate} onChange={e => setCcRate(parseFloat(e.target.value) || 0)} style={inputCss} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Durée (mois)</label>
+          <input type="number" step={1} min={1} max={120} value={months} onChange={e => setMonths(Math.max(1, parseInt(e.target.value) || 12))} style={inputCss} />
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {[
@@ -118,6 +146,30 @@ function BudgetSim() {
           </div>
         ))}
       </div>
+      {surplus > 0 && (
+        <div style={{ background: '#1c1c27', borderRadius: 10, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>
+            Simulation surplus en {months} mois {ccRate > 0 ? `(taux C/C ${ccRate}% / an)` : '(sans intérêts)'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'Surplus mensuel',  val: surplus,          color: 'oklch(65% 0.18 148)' },
+              { label: 'Accumulé brut',    val: withoutInterest,  color: '#636385' },
+              { label: ccRate > 0 ? 'Avec intérêts C/C' : 'Total',  val: finalSurplus,  color: ccRate > 0 ? 'oklch(63% 0.19 250)' : 'oklch(65% 0.18 148)' },
+            ].map(k => (
+              <div key={k.label} style={{ background: '#13131b', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#636385', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
+              </div>
+            ))}
+          </div>
+          {ccRate > 0 && interestGain > 0.01 && (
+            <div style={{ fontSize: 11, color: 'oklch(65% 0.16 185)', textAlign: 'center' }}>
+              +{fmt(interestGain)} d&apos;intérêts générés sur {months} mois
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ fontSize: 12, color: '#636385', background: '#1c1c27', borderRadius: 10, padding: '12px 16px' }}>
         La règle 50/30/20 est un guide général. Adaptez selon votre situation personnelle.
       </div>

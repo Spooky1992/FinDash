@@ -292,9 +292,11 @@ export default function ComptePage() {
     const dep = resolved.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
     const epa = resolved.savings.reduce((s, i) => s + i.amount, 0)
     const avant = compte.solde
-    const apres = avant + surplus
+    // On soustrait dépenses + épargne uniquement (les revenus sont saisis manuellement via le solde réel)
+    const delta = -(dep + epa)
+    const apres = avant + delta
     await updateSolde(apres, curKey)
-    await addHistorique({ key: curKey, label: monthLabel(curKey), avant, apres, revenus: rev, depenses: dep, epargne: epa, delta: surplus })
+    await addHistorique({ key: curKey, label: monthLabel(curKey), avant, apres, revenus: rev, depenses: dep, epargne: epa, delta })
   }
 
   const sortedTx = [...transactions].sort((a, b) => {
@@ -340,8 +342,8 @@ export default function ComptePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
               { label: 'Surplus mensuel', val: surplus, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
-              { label: 'Dans 6 mois', val: compte.solde + surplus * 6, color: 'oklch(63% 0.19 250)' },
-              { label: 'Dans 12 mois', val: compte.solde + surplus * 12, color: 'oklch(63% 0.19 250)' },
+              { label: 'Dans 6 mois',  val: (() => { let c = compte.solde; for (let i = 0; i < 6;  i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })(), color: 'oklch(63% 0.19 250)' },
+              { label: 'Dans 12 mois', val: (() => { let c = compte.solde; for (let i = 0; i < 12; i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })(), color: 'oklch(63% 0.19 250)' },
             ].map(r => (
               <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 11, color: '#636385' }}>{r.label}</span>
@@ -355,7 +357,7 @@ export default function ComptePage() {
               <div style={{ fontSize: 11, color: '#636385', textAlign: 'center' }}>✓ {monthLabel(curKey)} déjà appliqué</div>
             ) : (
               <button onClick={applyMonth} style={{ ...btnCss(), width: '100%', fontSize: 12 }}>
-                Appliquer {monthLabel(curKey)}
+                Déduire dépenses {monthLabel(curKey)}
               </button>
             )}
           </div>
@@ -366,7 +368,7 @@ export default function ComptePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>Projection 13 mois</span>
             <span style={{ fontSize: 12, color: 'oklch(63% 0.19 250)', fontWeight: 600 }}>
-              {fmt(compte.solde + surplus * 13)} dans 13 mois
+              {fmt((() => { let c = compte.solde; for (let i = 0; i < 13; i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })())} dans 13 mois
             </span>
           </div>
           <ProjectionChart solde={compte.solde} surplus={surplus} budget={budget} monthPlans={monthPlans} />

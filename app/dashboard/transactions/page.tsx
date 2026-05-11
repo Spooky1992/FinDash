@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useAppData } from '@/hooks/useAppData'
-import { fmt, todayISO, TX_TYPES, TX_CATEGORIES, cardCss, inputCss } from '@/lib/utils'
+import { fmt, todayISO, currentMonthKey, TX_TYPES, TX_CATEGORIES, cardCss, inputCss } from '@/lib/utils'
 import type { Transaction } from '@/lib/types'
 
 const typeColor = (t: string) => TX_TYPES.find(x => x.value === t)?.color ?? '#636385'
@@ -68,14 +68,14 @@ export default function TransactionsPage() {
                   onChange={e => setSoldeInput(e.target.value)}
                   onKeyDown={async e => {
                     if (e.key === 'Enter') {
-                      await updateSolde(parseFloat(soldeInput) || 0, todayISO())
+                      await updateSolde(parseFloat(soldeInput) || 0, currentMonthKey())
                       setEditingSolde(false)
                     }
                     if (e.key === 'Escape') setEditingSolde(false)
                   }}
                   style={{ ...inputCss, width: 160, fontSize: 20, fontWeight: 700, padding: '4px 10px' }}
                 />
-                <button onClick={async () => { await updateSolde(parseFloat(soldeInput) || 0, todayISO()); setEditingSolde(false) }}
+                <button onClick={async () => { await updateSolde(parseFloat(soldeInput) || 0, currentMonthKey()); setEditingSolde(false) }}
                   style={{ padding: '6px 14px', borderRadius: 8, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Inter' }}>
                   OK
                 </button>

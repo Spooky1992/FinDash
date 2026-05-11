@@ -189,7 +189,8 @@ export default function PatrimoinePage() {
 
   const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
   const cryptoTotal  = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
-  const livretsTotal = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
+  const livretsTotal       = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
+  const livretsInteretsAn  = portfolio.livrets.accounts.reduce((s, l) => s + l.solde * (l.rate / 100), 0)
   const immoTotal    = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
   const grandTotal   = peaTotal + cryptoTotal + livretsTotal + immoTotal
 
@@ -331,9 +332,15 @@ export default function PatrimoinePage() {
 
         {tab === 'livrets' && (
           <div className="pos-table">
+            {livretsInteretsAn > 0 && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'oklch(65% 0.16 185 / 0.1)', border: '1px solid oklch(65% 0.16 185 / 0.3)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#636385' }}>Intérêts annuels estimés</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'oklch(65% 0.16 185)' }}>+{fmt(livretsInteretsAn)} / an</span>
+              </div>
+            )}
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
-                {['Compte', 'Taux', 'Solde', ''].map((h, i) => (
+                {['Compte', 'Taux', 'Intérêts / an', 'Solde', ''].map((h, i) => (
                   <th key={i} style={{ padding: '6px 10px', textAlign: i >= 2 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
                 ))}
               </tr></thead>
@@ -342,6 +349,7 @@ export default function PatrimoinePage() {
                   <tr key={liv.id} style={{ borderBottom: '1px solid #1c1c27' }}>
                     <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{liv.name}</td>
                     <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{liv.rate}%</td>
+                    <td style={{ padding: '10px 10px', fontSize: 12, color: 'oklch(65% 0.16 185)', textAlign: 'right' }}>+{fmt(liv.solde * (liv.rate / 100))}</td>
                     <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(liv.solde)}</td>
                     <td style={{ padding: '10px 10px', textAlign: 'right' }}>
                       <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', marginRight: 4 }}>✏</button>
@@ -349,7 +357,7 @@ export default function PatrimoinePage() {
                     </td>
                   </tr>
                 ))}
-                {portfolio.livrets.accounts.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret</td></tr>}
+                {portfolio.livrets.accounts.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret</td></tr>}
               </tbody>
             </table>
           </div>
@@ -441,6 +449,7 @@ export default function PatrimoinePage() {
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>{liv.name}</div>
                     <div style={{ fontSize: 12, color: '#636385', marginTop: 2 }}>Taux : {liv.rate}%</div>
+                    <div style={{ fontSize: 12, color: 'oklch(65% 0.16 185)', marginTop: 2 }}>+{fmt(liv.solde * (liv.rate / 100))} / an</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(65% 0.16 185)' }}>{fmt(liv.solde)}</div>
