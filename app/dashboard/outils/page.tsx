@@ -5,19 +5,37 @@ import { fmt, cardCss, inputCss } from '@/lib/utils'
 type Tool = 'compound' | 'sim'
 
 function CompoundCalc() {
-  const [f, setF] = useState({ initial: 1000, monthly: 200, rate: 7, years: 20 })
+  const [f, setF] = useState({ initial: 1000, monthly: 200, rate: 7, years: 20, surplus: 0, livretRate: 3, inflation: 2 })
+  const [showSurplus, setShowSurplus] = useState(false)
 
   const points = Array.from({ length: f.years + 1 }, (_, i) => {
     const r = f.rate / 100 / 12
     const n = i * 12
     const futureInitial = f.initial * Math.pow(1 + r, n)
     const futureMonthly = r > 0 ? f.monthly * ((Math.pow(1 + r, n) - 1) / r) : f.monthly * n
-    return { year: i, total: futureInitial + futureMonthly, invested: f.initial + f.monthly * n }
+    // Surplus accumulé dans le livret (taux livret)
+    const rL = f.livretRate / 100 / 12
+    const futureSurplus = rL > 0 ? f.surplus * ((Math.pow(1 + rL, n) - 1) / rL) : f.surplus * n
+    // Valeur réelle du surplus (corrigée inflation)
+    const realFactor = Math.pow(1 + f.inflation / 100, -i)
+    return {
+      year: i,
+      total: futureInitial + futureMonthly,
+      invested: f.initial + f.monthly * n,
+      surplusNominal: futureSurplus,
+      surplusReal: futureSurplus * realFactor,
+      surplusInvested: f.surplus * n,
+    }
   })
 
   const last = points[points.length - 1]
   const gain = last.total - last.invested
-  const maxVal = last.total
+  const maxVal = showSurplus
+    ? Math.max(last.total, last.surplusNominal)
+    : last.total
+
+  const surplusGain = last.surplusNominal - last.surplusInvested
+  const surplusLostToInflation = last.surplusNominal - last.surplusReal
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -35,6 +53,7 @@ function CompoundCalc() {
           </div>
         ))}
       </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
           { label: 'Capital final',      val: last.total,    color: 'oklch(65% 0.18 148)' },
@@ -47,6 +66,67 @@ function CompoundCalc() {
           </div>
         ))}
       </div>
+
+      {/* Toggle surplus */}
+      <button onClick={() => setShowSurplus(x => !x)} style={{
+        alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter',
+        background: showSurplus ? 'oklch(68% 0.17 55 / 0.15)' : '#1c1c27',
+        border: `1px solid ${showSurplus ? 'oklch(68% 0.17 55 / 0.5)' : '#252535'}`,
+        color: showSurplus ? 'oklch(68% 0.17 55)' : '#636385', fontWeight: 600,
+      }}>
+        {showSurplus ? '▾' : '▸'} Comparer avec mon surplus mensuel
+      </button>
+
+      {showSurplus && (
+        <div style={{ background: '#1c1c27', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2' }}>Surplus placé en livret vs inflation</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Surplus mensuel (€)</label>
+              <input type="number" step={50} min={0} value={f.surplus}
+                onChange={e => setF(x => ({ ...x, surplus: parseFloat(e.target.value) || 0 }))} style={inputCss} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux livrets (%)</label>
+              <input type="number" step={0.1} min={0} value={f.livretRate}
+                onChange={e => setF(x => ({ ...x, livretRate: parseFloat(e.target.value) || 0 }))} style={inputCss} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Inflation (%)</label>
+              <input type="number" step={0.1} min={0} value={f.inflation}
+                onChange={e => setF(x => ({ ...x, inflation: parseFloat(e.target.value) || 0 }))} style={inputCss} />
+            </div>
+          </div>
+          {f.surplus > 0 && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {[
+                  { label: 'Surplus accumulé (nominal)', val: last.surplusNominal, color: 'oklch(65% 0.16 185)' },
+                  { label: 'Pouvoir d\'achat réel',       val: last.surplusReal,    color: f.livretRate >= f.inflation ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                  { label: 'Rogné par l\'inflation',      val: surplusLostToInflation, color: 'oklch(62% 0.20 25)' },
+                ].map(k => (
+                  <div key={k.label} style={{ background: '#13131b', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: '#636385', marginBottom: 4 }}>{k.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{
+                padding: '10px 14px', borderRadius: 8,
+                background: f.livretRate >= f.inflation ? 'oklch(65% 0.18 148 / 0.1)' : 'oklch(62% 0.20 25 / 0.1)',
+                border: `1px solid ${f.livretRate >= f.inflation ? 'oklch(65% 0.18 148 / 0.3)' : 'oklch(62% 0.20 25 / 0.3)'}`,
+                fontSize: 12, color: f.livretRate >= f.inflation ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)',
+              }}>
+                {f.livretRate >= f.inflation
+                  ? `Ton livret (${f.livretRate}%) bat l'inflation (${f.inflation}%) — ton surplus gagne +${fmt(surplusGain)} d'intérêts et conserve son pouvoir d'achat.`
+                  : `Ton livret (${f.livretRate}%) ne couvre pas l'inflation (${f.inflation}%) — ton surplus perd ${fmt(surplusLostToInflation)} de pouvoir d'achat sur ${f.years} ans.`
+                }
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {(() => {
         const cW = 600, cH = 180, padL = 8, padR = 8, padT = 12, padB = 28
         const usableH = cH - padT - padB
@@ -71,6 +151,12 @@ function CompoundCalc() {
                 <g key={p.year}>
                   <rect x={x} y={padT + usableH - hInvested} width={barW} height={hInvested} fill="oklch(63% 0.19 250)" fillOpacity={0.7} rx={2} />
                   <rect x={x} y={padT + usableH - hTotal} width={barW} height={hGain} fill="oklch(65% 0.18 148)" fillOpacity={0.9} rx={2} />
+                  {showSurplus && p.surplusNominal > 0 && (
+                    <rect x={x + barW + 1} y={padT + usableH - (p.surplusNominal / maxVal) * usableH}
+                      width={Math.max(2, barW - 2)}
+                      height={(p.surplusNominal / maxVal) * usableH}
+                      fill="oklch(65% 0.16 185)" fillOpacity={0.6} rx={2} />
+                  )}
                   {i % Math.max(1, Math.floor(f.years / 10)) === 0 && (
                     <text x={x + barW / 2} y={cH - 8} textAnchor="middle" fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">
                       {p.year > 0 ? `${p.year}a` : '0'}
@@ -85,6 +171,7 @@ function CompoundCalc() {
       <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(63% 0.19 250)', display: 'inline-block', borderRadius: 2 }} />Investi</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.18 148)', display: 'inline-block', borderRadius: 2 }} />Intérêts composés</span>
+        {showSurplus && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.16 185)', display: 'inline-block', borderRadius: 2 }} />Surplus livret</span>}
       </div>
     </div>
   )
@@ -92,40 +179,12 @@ function CompoundCalc() {
 
 function BudgetSim() {
   const [income, setIncome] = useState(3000)
-  const [ccRate, setCcRate] = useState(0)
-  const [months, setMonths] = useState(12)
-
   const savings50 = income * 0.5, savings30 = income * 0.3, savings20 = income * 0.2
-  const surplus = income - savings50 - savings30 - savings20
-
-  // Simulation du surplus accumulé sur N mois avec taux C/C mensuel
-  const surplusPoints = Array.from({ length: months + 1 }, (_, i) => {
-    const r = ccRate / 100 / 12
-    let total = 0
-    for (let m = 0; m < i; m++) {
-      total = (total + surplus) * (1 + r)
-    }
-    return { month: i, val: total }
-  })
-  const finalSurplus = surplusPoints[surplusPoints.length - 1].val
-  const withoutInterest = surplus * months
-  const interestGain = finalSurplus - withoutInterest
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-        <div>
-          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Revenu mensuel net (€)</label>
-          <input type="number" step={100} min={0} value={income} onChange={e => setIncome(parseFloat(e.target.value) || 0)} style={inputCss} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Taux C/C annuel (%)</label>
-          <input type="number" step={0.1} min={0} value={ccRate} onChange={e => setCcRate(parseFloat(e.target.value) || 0)} style={inputCss} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Durée (mois)</label>
-          <input type="number" step={1} min={1} max={120} value={months} onChange={e => setMonths(Math.max(1, parseInt(e.target.value) || 12))} style={inputCss} />
-        </div>
+      <div>
+        <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 4 }}>Revenu mensuel net (€)</label>
+        <input type="number" step={100} min={0} value={income} onChange={e => setIncome(parseFloat(e.target.value) || 0)} style={inputCss} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {[
@@ -146,30 +205,6 @@ function BudgetSim() {
           </div>
         ))}
       </div>
-      {surplus > 0 && (
-        <div style={{ background: '#1c1c27', borderRadius: 10, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f2', marginBottom: 12 }}>
-            Simulation surplus en {months} mois {ccRate > 0 ? `(taux C/C ${ccRate}% / an)` : '(sans intérêts)'}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-            {[
-              { label: 'Surplus mensuel',  val: surplus,          color: 'oklch(65% 0.18 148)' },
-              { label: 'Accumulé brut',    val: withoutInterest,  color: '#636385' },
-              { label: ccRate > 0 ? 'Avec intérêts C/C' : 'Total',  val: finalSurplus,  color: ccRate > 0 ? 'oklch(63% 0.19 250)' : 'oklch(65% 0.18 148)' },
-            ].map(k => (
-              <div key={k.label} style={{ background: '#13131b', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: '#636385', marginBottom: 4 }}>{k.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: k.color }}>{fmt(k.val)}</div>
-              </div>
-            ))}
-          </div>
-          {ccRate > 0 && interestGain > 0.01 && (
-            <div style={{ fontSize: 11, color: 'oklch(65% 0.16 185)', textAlign: 'center' }}>
-              +{fmt(interestGain)} d&apos;intérêts générés sur {months} mois
-            </div>
-          )}
-        </div>
-      )}
       <div style={{ fontSize: 12, color: '#636385', background: '#1c1c27', borderRadius: 10, padding: '12px 16px' }}>
         La règle 50/30/20 est un guide général. Adaptez selon votre situation personnelle.
       </div>
