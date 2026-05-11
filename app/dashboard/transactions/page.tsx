@@ -31,7 +31,11 @@ export default function TransactionsPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.label || !form.amount) return
-    await saveTx({ date: form.date, label: form.label, category: form.category || null, amount: parseFloat(form.amount), type: form.type as Transaction['type'] })
+    const amount = parseFloat(form.amount)
+    const type = form.type as Transaction['type']
+    await saveTx({ date: form.date, label: form.label, category: form.category || null, amount, type })
+    const delta = type === 'income' ? amount : -amount
+    await updateSolde(compte.solde + delta)
     setForm(f => ({ ...f, label: '', amount: '', category: '' }))
   }
 
@@ -273,7 +277,7 @@ export default function TransactionsPage() {
                     <td style={{ padding: '11px 12px', textAlign: 'right' }}>
                       {isDeleting ? (
                         <div style={{ display: 'inline-flex', gap: 5 }}>
-                          <button onClick={async () => { await deleteTx(tx.id); setDeletingId(null) }}
+                          <button onClick={async () => { const delta = tx.type === 'income' ? -tx.amount : tx.amount; await deleteTx(tx.id); await updateSolde(compte.solde + delta); setDeletingId(null) }}
                             style={{
                               padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter',
                               background: 'oklch(62% 0.20 25)', border: 'none', color: '#fff',
