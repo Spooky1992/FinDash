@@ -72,6 +72,21 @@ export const portfolio = pgTable('portfolio', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+// ── Positions de simulation (sandbox, n'affecte pas le patrimoine) ────────────
+export const simulationPositions = pgTable('simulation_positions', {
+  id:            varchar('id', { length: 64 }).primaryKey(),
+  userId:        integer('user_id').notNull().references(() => users.id),
+  type:          varchar('type', { length: 10 }).notNull(),  // pea|crypto
+  ticker:        varchar('ticker', { length: 30 }).notNull(),
+  name:          text('name'),
+  quantity:      numeric('quantity', { precision: 18, scale: 8 }).notNull(),
+  costPerUnit:   numeric('cost_per_unit', { precision: 18, scale: 6 }).notNull(),
+  currency:      varchar('currency', { length: 5 }).notNull().default('EUR'),
+  purchaseDate:  date('purchase_date'),
+  purchaseEurUsd:numeric('purchase_eur_usd', { precision: 10, scale: 6 }),
+  createdAt:     timestamp('created_at').defaultNow().notNull(),
+})
+
 // ── Journal des mouvements de capital ─────────────────────
 export const capitalMoves = pgTable('capital_moves', {
   id:        varchar('id', { length: 64 }).primaryKey(),

@@ -11,6 +11,7 @@ const NAV = [
   { href: '/dashboard/compte',          label: 'Mon Compte',     icon: '◈' },
   { href: '/dashboard/patrimoine',      label: 'Patrimoine',     icon: '◆' },
   { href: '/dashboard/investissements', label: 'Investissements',icon: '▲' },
+  { href: '/dashboard/simulation',      label: 'Simulation',     icon: '🧪' },
   { href: '/dashboard/journal',         label: 'Journal',        icon: '◑' },
   { href: '/dashboard/outils',          label: 'Outils',         icon: '⚙' },
   { href: '/dashboard/cours',           label: 'Cours',          icon: '📈' },
