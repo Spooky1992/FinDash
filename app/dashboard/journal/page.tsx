@@ -126,8 +126,6 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
   const [fetchingLive, setFetch]  = useState(false)
 
   const data = computeTickerPnL(moves)
-  if (data.length === 0) return null
-
   const tickersWithHoldings = data.filter(t => t.stillHeld > 0).map(t => t.ticker)
 
   async function fetchLive() {
@@ -136,13 +134,27 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
     const results: Record<string, number> = {}
     await Promise.all(tickersWithHoldings.map(async ticker => {
       try {
-        const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
-        const d = await r.json()
-        if (d.price) results[ticker] = d.price
+        const isCrypto = ['BTC','ETH','SOL','ADA','XRP','BNB','DOT','MATIC','LINK','AVAX'].includes(ticker.replace('-EUR','').toUpperCase())
+        const COINS: Record<string,string> = { BTC:'bitcoin',ETH:'ethereum',SOL:'solana',ADA:'cardano',XRP:'ripple',BNB:'binancecoin',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',AVAX:'avalanche-2' }
+        if (isCrypto) {
+          const id = COINS[ticker.replace('-EUR','').toUpperCase()] ?? ticker.toLowerCase()
+          const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`)
+          const d = await r.json()
+          if (d.price) results[ticker] = d.price
+        } else {
+          const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
+          const d = await r.json()
+          if (d.price) results[ticker] = d.price
+        }
       } catch {}
     }))
     setLive(results); setFetch(false)
   }
+
+  // Chargement auto au montage si des positions sont ouvertes
+  useEffect(() => { if (tickersWithHoldings.length > 0) fetchLive() }, [moves])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (data.length === 0) return null
 
   const totalRealized = data.reduce((s, t) => s + t.realizedPnL, 0)
   const totalLatent   = data.reduce((s, t) => {
@@ -162,7 +174,7 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
           {tickersWithHoldings.length > 0 && (
             <button onClick={fetchLive} disabled={fetchingLive} style={{ padding: '5px 14px', borderRadius: 7, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600, background: '#1c1c27', border: '1px solid #252535', color: '#636385', opacity: fetchingLive ? 0.5 : 1 }}>
-              {fetchingLive ? 'Chargement…' : '↻ Prix live'}
+              {fetchingLive ? '⟳ Cours…' : '↻ Actualiser'}
             </button>
           )}
           <div style={{ textAlign: 'right' }}>
@@ -171,11 +183,11 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
               {totalRealized >= 0 ? '+' : ''}{fmt(totalRealized)}
             </div>
           </div>
-          {hasLive && (
+          {tickersWithHoldings.length > 0 && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: '#636385' }}>P&L latent</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: totalLatent >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-                {totalLatent >= 0 ? '+' : ''}{fmt(totalLatent)}
+              <div style={{ fontSize: 18, fontWeight: 700, color: fetchingLive ? '#636385' : totalLatent >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                {fetchingLive ? '…' : hasLive ? (totalLatent >= 0 ? '+' : '') + fmt(totalLatent) : '—'}
               </div>
             </div>
           )}
@@ -256,8 +268,8 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
                       {latentPct != null && <div style={{ fontSize: 10, color: latentPnL >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>{latentPct >= 0 ? '+' : ''}{latentPct.toFixed(2)}%</div>}
                     </div>
                   )}
-                  {t.totalSold === 0 && latentPnL == null && (
-                    <span style={{ fontSize: 11, color: '#636385' }}>↻ Prix live</span>
+                  {t.stillHeld > 0 && latentPnL == null && (
+                    <span style={{ fontSize: 11, color: '#636385' }}>{fetchingLive ? '⟳' : '—'}</span>
                   )}
                 </div>
 
