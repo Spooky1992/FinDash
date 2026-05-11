@@ -131,6 +131,14 @@ function CompoundCalc() {
         const cW = 600, cH = 180, padL = 8, padR = 8, padT = 12, padB = 28
         const usableH = cH - padT - padB
         const barW = Math.max(4, Math.floor((cW - padL - padR) / points.length) - 3)
+        const cx = (i: number) => padL + i * (barW + 3) + barW / 2
+        const cy = (v: number) => padT + usableH - (v / maxVal) * usableH
+        const surplusPath = showSurplus && f.surplus > 0
+          ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${cx(i).toFixed(1)},${cy(p.surplusNominal).toFixed(1)}`).join(' ')
+          : null
+        const surplusRealPath = showSurplus && f.surplus > 0
+          ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${cx(i).toFixed(1)},${cy(p.surplusReal).toFixed(1)}`).join(' ')
+          : null
         return (
           <svg viewBox={`0 0 ${cW} ${cH}`} style={{ width: '100%', display: 'block' }}>
             {[0, 0.25, 0.5, 0.75, 1].map(frac => {
@@ -151,12 +159,6 @@ function CompoundCalc() {
                 <g key={p.year}>
                   <rect x={x} y={padT + usableH - hInvested} width={barW} height={hInvested} fill="oklch(63% 0.19 250)" fillOpacity={0.7} rx={2} />
                   <rect x={x} y={padT + usableH - hTotal} width={barW} height={hGain} fill="oklch(65% 0.18 148)" fillOpacity={0.9} rx={2} />
-                  {showSurplus && p.surplusNominal > 0 && (
-                    <rect x={x + barW + 1} y={padT + usableH - (p.surplusNominal / maxVal) * usableH}
-                      width={Math.max(2, barW - 2)}
-                      height={(p.surplusNominal / maxVal) * usableH}
-                      fill="oklch(65% 0.16 185)" fillOpacity={0.6} rx={2} />
-                  )}
                   {i % Math.max(1, Math.floor(f.years / 10)) === 0 && (
                     <text x={x + barW / 2} y={cH - 8} textAnchor="middle" fontSize={8} fill="#636385" fontFamily="Inter, sans-serif">
                       {p.year > 0 ? `${p.year}a` : '0'}
@@ -165,13 +167,18 @@ function CompoundCalc() {
                 </g>
               )
             })}
+            {surplusPath && <path d={surplusPath} stroke="oklch(65% 0.16 185)" strokeWidth={2} fill="none" strokeLinejoin="round" />}
+            {surplusRealPath && <path d={surplusRealPath} stroke="oklch(62% 0.20 25)" strokeWidth={1.5} fill="none" strokeDasharray="4 3" strokeLinejoin="round" />}
           </svg>
         )
       })()}
-      <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
+      <div style={{ display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(63% 0.19 250)', display: 'inline-block', borderRadius: 2 }} />Investi</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.18 148)', display: 'inline-block', borderRadius: 2 }} />Intérêts composés</span>
-        {showSurplus && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: 'oklch(65% 0.16 185)', display: 'inline-block', borderRadius: 2 }} />Surplus livret</span>}
+        {showSurplus && f.surplus > 0 && <>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><svg width={16} height={10}><line x1={0} y1={5} x2={16} y2={5} stroke="oklch(65% 0.16 185)" strokeWidth={2} /></svg>Surplus livret (nominal)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><svg width={16} height={10}><line x1={0} y1={5} x2={16} y2={5} stroke="oklch(62% 0.20 25)" strokeWidth={1.5} strokeDasharray="4 3" /></svg>Pouvoir d&apos;achat réel</span>
+        </>}
       </div>
     </div>
   )
