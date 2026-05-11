@@ -178,15 +178,14 @@ function MiniChart({ ticker, color, costPerUnit }: { ticker: string; color: stri
 }
 
 // ── Position row ──────────────────────────────────────────────────────────────
-function PositionRow({ p, liveRaw, liveCurrency, usdToEur, color, selected, onSelect, onEdit, onDelete }: {
+function PositionRow({ p, liveRaw, liveCurrency, usdToEur, gbpToEur, color, selected, onSelect, onEdit, onDelete }: {
   p: { id: string; ticker: string; quantity: number; costPerUnit: number; name?: string; currency?: 'EUR' | 'USD'; purchaseEurUsd?: number }
-  liveRaw: number; liveCurrency: string; usdToEur: number; color: string; selected: boolean
+  liveRaw: number; liveCurrency: string; usdToEur: number; gbpToEur: number; color: string; selected: boolean
   onSelect: () => void; onEdit: () => void; onDelete: () => void
 }) {
-  // Conversion prix live selon la devise retournée par Yahoo (usdToEur = EUR=X = EUR pour 1 USD)
   const liveEur = liveCurrency === 'EUR' ? liveRaw
-    : liveCurrency === 'GBp' || liveCurrency === 'GBX' ? liveRaw * usdToEur / 100 * 1.17
-    : liveRaw * usdToEur // USD × (EUR/USD) = EUR
+    : liveCurrency === 'GBp' || liveCurrency === 'GBX' ? (liveRaw / 100) * gbpToEur
+    : liveRaw * usdToEur
   // PRU : taux historique si disponible, sinon taux actuel
   const purchaseRate = p.currency === 'USD' ? (p.purchaseEurUsd ?? usdToEur) : 1
   const cpuEur = p.currency === 'USD' ? p.costPerUnit * purchaseRate : p.costPerUnit
@@ -244,6 +243,7 @@ export default function InvestissementsPage() {
   const [paused, setPaused]         = useState(false)
   const [elapsed, setElapsed]       = useState(0)
   const [usdToEur, setUsdToEur]     = useState<number>(0.88)
+  const [gbpToEur, setGbpToEur]     = useState<number>(1.163)
   const [selected, setSelected]     = useState<string | null>(null)
   const [showForm, setShowForm]     = useState(false)
   const [editItem, setEditItem]     = useState<Partial<Position> & { _type?: InvestTab; currency?: 'EUR' | 'USD' }>({})
@@ -307,6 +307,9 @@ export default function InvestissementsPage() {
       (async () => {
         try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setUsdToEur(d.price) } catch {}
       })(),
+      (async () => {
+        try { const r = await fetch('/api/prices/stock?ticker=GBPEUR%3DX'); const d = await r.json(); if (d.price) setGbpToEur(d.price) } catch {}
+      })(),
     ])
     setPrices(newPrices); setLiveCurrencies(newCurrencies); setLoading(false)
   }, [loading, portfolio.pea.positions, portfolio.crypto.positions])
@@ -321,8 +324,8 @@ export default function InvestissementsPage() {
     const raw = prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit
     const cur = liveCurrencies[p.ticker] ?? 'USD'
     if (cur === 'EUR') return raw
-    if (cur === 'GBp' || cur === 'GBX') return raw * usdToEur / 100 * 1.17
-    return raw * usdToEur // USD × (EUR/USD) = EUR
+    if (cur === 'GBp' || cur === 'GBX') return (raw / 100) * gbpToEur
+    return raw * usdToEur
   }
   function cpuEur(p: typeof peaPositions[0]) {
     if ((p as { currency?: string }).currency !== 'USD') return p.costPerUnit
@@ -424,7 +427,7 @@ export default function InvestissementsPage() {
                     key={p.id} p={p}
                     liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
                     liveCurrency={liveCurrencies[p.ticker] ?? 'USD'}
-                    usdToEur={usdToEur}
+                    usdToEur={usdToEur} gbpToEur={gbpToEur}
                     color={CAT_COLOR_PEA}
                     selected={selected === p.id}
                     onSelect={() => setSelected(s => s === p.id ? null : p.id)}
@@ -480,7 +483,7 @@ export default function InvestissementsPage() {
                     key={p.id} p={p}
                     liveRaw={prices[p.ticker] ?? (p as { price?: number }).price ?? p.costPerUnit}
                     liveCurrency={liveCurrencies[p.ticker] ?? 'EUR'}
-                    usdToEur={usdToEur}
+                    usdToEur={usdToEur} gbpToEur={gbpToEur}
                     color={CAT_COLOR_CRYPTO}
                     selected={selected === p.id}
                     onSelect={() => setSelected(s => s === p.id ? null : p.id)}

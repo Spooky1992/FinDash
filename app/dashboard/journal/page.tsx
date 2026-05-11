@@ -120,9 +120,24 @@ function computeTickerPnL(moves: CapitalMove[]): TickerPnL[] {
   }).filter(t => t.buys.length > 0 || t.sells.length > 0)
 }
 
+const CRYPTO_COINS: Record<string,string> = { BTC:'bitcoin',ETH:'ethereum',SOL:'solana',ADA:'cardano',XRP:'ripple',BNB:'binancecoin',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',AVAX:'avalanche-2' }
+const CRYPTO_TICKERS = new Set(Object.keys(CRYPTO_COINS))
+
+// Convertit un prix brut Yahoo/CoinGecko en EUR
+function toEur(raw: number, currency: string, usdToEur: number, gbpToEur: number): number {
+  if (currency === 'EUR') return raw
+  if (currency === 'GBp' || currency === 'GBX') return (raw / 100) * gbpToEur
+  if (currency === 'GBP') return raw * gbpToEur
+  if (currency === 'USD') return raw * usdToEur
+  return raw
+}
+
 function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
-  const [livePrices, setLive]     = useState<Record<string, number>>({})
+  const [livePrices, setLive]     = useState<Record<string, number>>({})      // prix brut
+  const [liveCurrencies, setLiveCur] = useState<Record<string, string>>({})  // devise Yahoo
+  const [usdToEur, setUsdToEur]   = useState(0.88)
+  const [gbpToEur, setGbpToEur]   = useState(1.163)
   const [fetchingLive, setFetch]  = useState(false)
 
   const data = computeTickerPnL(moves)
@@ -132,34 +147,53 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
     if (tickersWithHoldings.length === 0) return
     setFetch(true)
     const results: Record<string, number> = {}
-    await Promise.all(tickersWithHoldings.map(async ticker => {
-      try {
-        const isCrypto = ['BTC','ETH','SOL','ADA','XRP','BNB','DOT','MATIC','LINK','AVAX'].includes(ticker.replace('-EUR','').toUpperCase())
-        const COINS: Record<string,string> = { BTC:'bitcoin',ETH:'ethereum',SOL:'solana',ADA:'cardano',XRP:'ripple',BNB:'binancecoin',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',AVAX:'avalanche-2' }
-        if (isCrypto) {
-          const id = COINS[ticker.replace('-EUR','').toUpperCase()] ?? ticker.toLowerCase()
-          const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`)
-          const d = await r.json()
-          if (d.price) results[ticker] = d.price
-        } else {
-          const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
-          const d = await r.json()
-          if (d.price) results[ticker] = d.price
-        }
-      } catch {}
-    }))
-    setLive(results); setFetch(false)
+    const currencies: Record<string, string> = {}
+    await Promise.all([
+      // Taux EUR/USD
+      (async () => {
+        try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setUsdToEur(d.price) } catch {}
+      })(),
+      // Taux GBP/EUR
+      (async () => {
+        try { const r = await fetch('/api/prices/stock?ticker=GBPEUR%3DX'); const d = await r.json(); if (d.price) setGbpToEur(d.price) } catch {}
+      })(),
+      ...tickersWithHoldings.map(async ticker => {
+        try {
+          const base = ticker.replace('-EUR','').toUpperCase()
+          if (CRYPTO_TICKERS.has(base)) {
+            const id = CRYPTO_COINS[base] ?? ticker.toLowerCase()
+            const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`)
+            const d = await r.json()
+            if (d.price) { results[ticker] = d.price; currencies[ticker] = 'EUR' }
+          } else {
+            const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(ticker)}`)
+            const d = await r.json()
+            if (d.price) { results[ticker] = d.price; currencies[ticker] = d.currency ?? 'EUR' }
+          }
+        } catch {}
+      }),
+    ])
+    setLive(results); setLiveCur(currencies); setFetch(false)
   }
 
   // Chargement auto au montage si des positions sont ouvertes
   useEffect(() => { if (tickersWithHoldings.length > 0) fetchLive() }, [moves])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Prix live converti en EUR pour chaque ticker
+  function liveEur(ticker: string): number | null {
+    const raw = livePrices[ticker]
+    if (raw == null) return null
+    return toEur(raw, liveCurrencies[ticker] ?? 'EUR', usdToEur, gbpToEur)
+  }
+
   if (data.length === 0) return null
 
   const totalRealized = data.reduce((s, t) => s + t.realizedPnL, 0)
   const totalLatent   = data.reduce((s, t) => {
-    if (t.stillHeld <= 0 || !livePrices[t.ticker]) return s
-    return s + t.stillHeld * (livePrices[t.ticker] - t.avgBuyPrice)
+    if (t.stillHeld <= 0) return s
+    const live = liveEur(t.ticker)
+    if (live == null) return s
+    return s + t.stillHeld * (live - t.avgBuyPrice)
   }, 0)
   const hasLive = Object.keys(livePrices).length > 0
 
@@ -197,8 +231,8 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {data.map(t => {
           const isOpen    = expanded === t.ticker
-          const livePrice = livePrices[t.ticker]
-          const latentPnL = t.stillHeld > 0 && livePrice ? t.stillHeld * (livePrice - t.avgBuyPrice) : null
+          const livePriceEur = liveEur(t.ticker)
+          const latentPnL = t.stillHeld > 0 && livePriceEur != null ? t.stillHeld * (livePriceEur - t.avgBuyPrice) : null
           const latentPct = latentPnL != null && t.netInvested > 0 ? (latentPnL / t.netInvested) * 100 : null
           const realPct   = t.investedEur > 0 ? (t.realizedPnL / t.investedEur) * 100 : 0
 
@@ -240,10 +274,17 @@ function TickerPnLSection({ moves }: { moves: CapitalMove[] }) {
                     <div style={{ fontSize: 10, color: '#636385' }}>Capital net immobilisé</div>
                     <div style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 600 }}>{fmt(Math.max(0, t.netInvested))}</div>
                   </div>
-                  {livePrice && t.stillHeld > 0 && (
+                  {livePriceEur != null && t.stillHeld > 0 && (
                     <div>
-                      <div style={{ fontSize: 10, color: '#636385' }}>Prix live</div>
-                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>{livePrice.toFixed(4)}</div>
+                      <div style={{ fontSize: 10, color: '#636385' }}>Prix live (€)</div>
+                      <div style={{ fontSize: 12, color: '#e8e8f2' }}>
+                        {livePriceEur.toFixed(4)}
+                        {liveCurrencies[t.ticker] && liveCurrencies[t.ticker] !== 'EUR' && (
+                          <span style={{ fontSize: 9, color: '#636385', marginLeft: 4 }}>
+                            ({livePrices[t.ticker]?.toFixed(2)} {liveCurrencies[t.ticker]})
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

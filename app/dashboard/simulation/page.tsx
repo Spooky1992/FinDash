@@ -150,6 +150,7 @@ export default function SimulationPage() {
   const [prices, setPrices]       = useState<Record<string, number>>({})
   const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
   const [usdToEur, setUsdToEur]   = useState(0.88)
+  const [gbpToEur, setGbpToEur]   = useState(1.163)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [selected, setSelected]   = useState<string | null>(null)
   const [showForm, setShowForm]   = useState(false)
@@ -179,6 +180,9 @@ export default function SimulationPage() {
       }),
       (async () => {
         try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setUsdToEur(d.price) } catch {}
+      })(),
+      (async () => {
+        try { const r = await fetch('/api/prices/stock?ticker=GBPEUR%3DX'); const d = await r.json(); if (d.price) setGbpToEur(d.price) } catch {}
       })(),
     ])
     setPrices(newPrices); setLiveCurrencies(newCurrencies); setLoadingPrices(false)
@@ -242,7 +246,7 @@ export default function SimulationPage() {
     const raw = prices[p.ticker] ?? p.costPerUnit
     const cur = liveCurrencies[p.ticker]
     if (!cur || cur === 'EUR') return raw
-    if (cur === 'GBp' || cur === 'GBX') return raw * usdToEur / 100 * 1.17
+    if (cur === 'GBp' || cur === 'GBX') return (raw / 100) * gbpToEur
     return raw * usdToEur
   }
   function cpuEur(p: SimPosition) {

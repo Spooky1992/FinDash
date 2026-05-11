@@ -85,7 +85,8 @@ export default function PatrimoinePage() {
   const [tab, setTab] = useState<Tab>('pea')
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
-  const [usdToEur, setUsdToEur] = useState<number>(0.88) // EUR=X sur Yahoo = combien d'EUR pour 1 USD
+  const [usdToEur, setUsdToEur] = useState<number>(0.88)
+  const [gbpToEur, setGbpToEur] = useState<number>(1.163)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<Partial<Position & Livret & Immo> & { _type?: Tab; currency?: 'EUR' | 'USD' }>({})
@@ -100,7 +101,12 @@ export default function PatrimoinePage() {
       try {
         const r = await fetch('/api/prices/stock?ticker=EUR%3DX')
         const d = await r.json()
-        if (d.price) setUsdToEur(d.price) // EUR=X = combien d'EUR pour 1 USD
+        if (d.price) setUsdToEur(d.price)
+      } catch {}
+      try {
+        const r = await fetch('/api/prices/stock?ticker=GBPEUR%3DX')
+        const d = await r.json()
+        if (d.price) setGbpToEur(d.price)
       } catch {}
       await Promise.all([
         ...portfolio.pea.positions.map(async p => {
@@ -177,8 +183,8 @@ export default function PatrimoinePage() {
     const raw = prices[p.ticker] ?? p.price ?? p.costPerUnit
     const cur = liveCurrencies[p.ticker]
     if (!cur || cur === 'EUR') return raw
-    if (cur === 'GBp' || cur === 'GBX') return raw * usdToEur / 100 * 1.17 // pence → GBP → EUR
-    return raw * usdToEur // USD → EUR
+    if (cur === 'GBp' || cur === 'GBX') return (raw / 100) * gbpToEur
+    return raw * usdToEur
   }
   function costEur(p: Position) {
     if (p.currency !== 'USD') return p.costPerUnit
