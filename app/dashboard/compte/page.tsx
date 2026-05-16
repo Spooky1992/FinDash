@@ -187,34 +187,35 @@ function Calendar({ transactions }: { transactions: ReturnType<typeof useAppData
 
           return (
             <div key={day}
+              className="cal-day-cell"
               onClick={() => setSelectedDay(isSelected ? null : day)}
               style={{
                 borderRadius: 10, padding: '6px 4px', cursor: txs.length > 0 ? 'pointer' : 'default', minHeight: 64,
                 background: isSelected ? 'oklch(63% 0.19 250 / 0.15)' : isToday ? '#1c1c27' : 'transparent',
                 border: `1px solid ${isSelected ? 'oklch(63% 0.19 250 / 0.6)' : isToday ? 'oklch(63% 0.19 250 / 0.4)' : '#1c1c27'}`,
-                transition: 'background 0.15s',
+                transition: 'background 0.15s', overflow: 'hidden',
               }}>
               <div style={{ textAlign: 'right', fontSize: 11, fontWeight: isToday ? 700 : 400,
                 color: isToday ? 'oklch(63% 0.19 250)' : txs.length > 0 ? '#e8e8f2' : '#3a3a50',
                 marginBottom: 4 }}>{day}</div>
-              {/* Mini transaction dots */}
+              {/* Mini transaction dots + labels (labels masqués sur mobile) */}
               {txs.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {txs.slice(0, 3).map(tx => (
                     <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
                         background: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : 'oklch(62% 0.20 25)' }} />
-                      <span style={{ fontSize: 9, color: '#636385', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                      <span className="cal-day-text" style={{ fontSize: 9, color: '#636385', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                         {tx.label}
                       </span>
                     </div>
                   ))}
-                  {txs.length > 3 && <div style={{ fontSize: 8, color: '#636385', paddingLeft: 8 }}>+{txs.length - 3} autres</div>}
+                  {txs.length > 3 && <div className="cal-day-text" style={{ fontSize: 8, color: '#636385', paddingLeft: 8 }}>+{txs.length - 3}</div>}
                 </div>
               )}
-              {/* Totals */}
+              {/* Totals (masqués sur mobile) */}
               {totals && (
-                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <div className="cal-day-amounts" style={{ marginTop: 4 }}>
                   {hasIncome  && <div style={{ fontSize: 9, color: 'oklch(65% 0.18 148)', fontWeight: 600, textAlign: 'right' }}>+{totals.income.toLocaleString('fr-FR')} €</div>}
                   {hasExpense && <div style={{ fontSize: 9, color: 'oklch(62% 0.20 25)',  fontWeight: 600, textAlign: 'right' }}>-{totals.expense.toLocaleString('fr-FR')} €</div>}
                 </div>
