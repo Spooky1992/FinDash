@@ -86,6 +86,9 @@ text { user-select: none; }
 /* ── Tables scrollables ──────────────────────────────────────────────────────*/
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* ── Transactions mobile list (hidden on desktop) ────────────────────────────*/
+.tx-mobile-list { display: none; }
+
 /* ── Page padding ────────────────────────────────────────────────────────────*/
 .page-pad { padding: 28px 32px; }
 
@@ -243,6 +246,10 @@ text { user-select: none; }
   /* ── Patrimoine : cartes au lieu de tableau ──────────────────────────────*/
   .pos-table { display: none !important; }
   .pos-cards { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Transactions : cartes au lieu de tableau ────────────────────────────*/
+  .tx-table { display: none !important; }
+  .tx-mobile-list { display: flex; flex-direction: column; }
 
   /* ── Modales : sheet depuis le bas ──────────────────────────────────────*/
   .modal-sheet-wrap { align-items: flex-end; }
