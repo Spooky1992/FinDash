@@ -223,8 +223,8 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* Table */}
-      <div style={cardCss}>
+      {/* Table — desktop */}
+      <div style={cardCss} className="tx-table">
         {loading ? (
           <div style={{ color: '#636385', fontSize: 13, textAlign: 'center', padding: 32 }}>Chargement…</div>
         ) : (
@@ -317,6 +317,68 @@ export default function TransactionsPage() {
               })}
             </tbody>
           </table>
+          </div>
+        )}
+      </div>
+
+      {/* Cartes — mobile */}
+      <div className="tx-mobile-list" style={{ gap: 0 }}>
+        {loading ? (
+          <div style={{ ...cardCss, color: '#636385', fontSize: 13, textAlign: 'center', padding: 32 }}>Chargement…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ ...cardCss, textAlign: 'center', padding: 40, color: '#636385', fontSize: 13 }}>Aucune transaction trouvée</div>
+        ) : (
+          <div style={{ ...cardCss, padding: 0, overflow: 'hidden' }}>
+            {filtered.map((tx, idx) => {
+              const isDeleting = deletingId === tx.id
+              return (
+                <div key={tx.id} style={{
+                  padding: '14px 16px',
+                  borderBottom: idx < filtered.length - 1 ? '1px solid #1c1c27' : 'none',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2', flex: 1, lineHeight: 1.3 }}>{tx.label}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap',
+                      color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : '#e8e8f2' }}>
+                      {tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: '#636385' }}>{tx.date}</span>
+                    {tx.category && (
+                      <span style={{ fontSize: 12, color: '#636385' }}>· {tx.category}</span>
+                    )}
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+                      color: typeColor(tx.type),
+                      background: typeColor(tx.type) + '22',
+                      border: `1px solid ${typeColor(tx.type)}44`,
+                    }}>
+                      {typeLabel(tx.type)}
+                    </span>
+                    <div style={{ marginLeft: 'auto' }}>
+                      {isDeleting ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={async () => { const delta = tx.type === 'income' ? -tx.amount : tx.amount; await deleteTx(tx.id); await updateSolde(compte.solde + delta); setDeletingId(null) }}
+                            style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter', background: 'oklch(62% 0.20 25)', border: 'none', color: '#fff', minHeight: 32 }}>
+                            Confirmer
+                          </button>
+                          <button onClick={() => setDeletingId(null)}
+                            style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter', background: 'transparent', border: '1px solid #2a2a3a', color: '#636385', minHeight: 32 }}>
+                            Annuler
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setDeletingId(tx.id)}
+                          style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter', background: 'transparent', border: '1px solid #2a2a3a', color: '#636385', minHeight: 32 }}>
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

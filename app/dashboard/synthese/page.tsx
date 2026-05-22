@@ -1,8 +1,13 @@
 'use client'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppData } from '@/hooks/useAppData'
 import { fmt, currentMonthKey, addMonths, monthLabel, resolveBudget, calcSurplus, cardCss } from '@/lib/utils'
 import { Treemap, TreemapLegend, type TreemapItem } from '@/components/Treemap'
+
+const KNOWN_COINS: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
+  XRP: 'ripple', DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
+}
 
 function VerticalBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   if (data.length === 0) return <div style={{ color: '#636385', fontSize: 12 }}>Aucune dépense configurée</div>
@@ -118,6 +123,43 @@ function ProjectionChart({ points, labels, color = 'oklch(63% 0.19 250)' }: {
 export default function SynthesePage() {
   const { budget, monthPlans, compte, transactions, portfolio, loading } = useAppData()
 
+  // Live prices
+  const [prices, setPrices]               = useState<Record<string, number>>({})
+  const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
+  const [usdToEur, setUsdToEur]           = useState(0.92)
+  const [gbpToEur, setGbpToEur]           = useState(1.17)
+
+  const fetchPrices = useCallback(async () => {
+    if (loading) return
+    const newPrices: Record<string, number> = {}
+    const newCurrencies: Record<string, string> = {}
+    await Promise.all([
+      ...portfolio.pea.positions.map(async p => {
+        try { const r = await fetch(`/api/prices/stock?ticker=${encodeURIComponent(p.ticker)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = d.currency ?? 'USD' } } catch {}
+      }),
+      ...portfolio.crypto.positions.map(async p => {
+        try { const id = KNOWN_COINS[p.ticker.replace('-EUR', '').toUpperCase()] ?? p.ticker.toLowerCase(); const r = await fetch(`/api/prices/crypto?id=${encodeURIComponent(id)}`); const d = await r.json(); if (d.price) { newPrices[p.ticker] = d.price; newCurrencies[p.ticker] = 'EUR' } } catch {}
+      }),
+      (async () => { try { const r = await fetch('/api/prices/stock?ticker=EUR%3DX'); const d = await r.json(); if (d.price) setUsdToEur(d.price) } catch {} })(),
+      (async () => { try { const r = await fetch('/api/prices/stock?ticker=GBPEUR%3DX'); const d = await r.json(); if (d.price) setGbpToEur(d.price) } catch {} })(),
+    ])
+    setPrices(newPrices); setLiveCurrencies(newCurrencies)
+  }, [loading, portfolio.pea.positions, portfolio.crypto.positions])
+
+  useEffect(() => { fetchPrices() }, [fetchPrices])
+
+  function liveEur(p: { ticker: string; costPerUnit: number; quantity: number }) {
+    const raw = prices[p.ticker] ?? p.costPerUnit
+    const cur = liveCurrencies[p.ticker] ?? 'USD'
+    if (cur === 'EUR') return raw
+    if (cur === 'GBp' || cur === 'GBX') return (raw / 100) * gbpToEur
+    return raw * usdToEur
+  }
+  function cpuEur(p: { ticker: string; costPerUnit: number; currency?: string; purchaseEurUsd?: number }) {
+    if (p.currency !== 'USD') return p.costPerUnit
+    return p.costPerUnit * (p.purchaseEurUsd ?? usdToEur)
+  }
+
   const curKey = currentMonthKey()
 
   // Budget actuel résolu
@@ -128,12 +170,14 @@ export default function SynthesePage() {
   const surplus       = totalRevenu - totalDepense - totalEpargne
   const tauxEpargne   = totalRevenu > 0 ? (totalEpargne / totalRevenu) * 100 : 0
 
-  // Patrimoine total
-  const peaTotal      = portfolio.pea.positions.reduce((s, p) => s + p.quantity * (p.price ?? p.costPerUnit), 0)
-  const cryptoTotal   = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * (p.price ?? p.costPerUnit), 0)
+  // Patrimoine — valeur marché (live) et coût d'achat
+  const peaValue      = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
+  const peaCost       = portfolio.pea.positions.reduce((s, p) => s + p.quantity * cpuEur(p as never), 0)
+  const cryptoValue   = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
+  const cryptoCost    = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * cpuEur(p as never), 0)
   const livretsTotal  = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
   const immoTotal     = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
-  const patrimoineTotal = peaTotal + cryptoTotal + livretsTotal + immoTotal + compte.solde
+  const patrimoineTotal = peaValue + cryptoValue + livretsTotal + immoTotal + compte.solde
 
   // Dépenses par catégorie (ce mois)
   const depCat = resolved.expenses.map(cat => ({
@@ -159,12 +203,14 @@ export default function SynthesePage() {
 
   // Allocation patrimoine (treemap)
   const allocItems: TreemapItem[] = [
-    { label: 'Liquidités',  value: compte.solde,  color: 'oklch(63% 0.19 250)' },
-    { label: 'Actions/ETF', value: peaTotal,       color: 'oklch(65% 0.18 148)' },
-    { label: 'Crypto',      value: cryptoTotal,    color: 'oklch(68% 0.17 55)'  },
-    { label: 'Livrets',     value: livretsTotal,   color: 'oklch(65% 0.16 185)' },
-    { label: 'Immobilier',  value: immoTotal,      color: 'oklch(63% 0.19 290)' },
+    { label: 'Liquidités',  value: compte.solde, color: 'oklch(63% 0.19 250)' },
+    { label: 'Actions/ETF', value: peaValue,      color: 'oklch(65% 0.18 148)' },
+    { label: 'Crypto',      value: cryptoValue,   color: 'oklch(68% 0.17 55)'  },
+    { label: 'Livrets',     value: livretsTotal,  color: 'oklch(65% 0.16 185)' },
+    { label: 'Immobilier',  value: immoTotal,     color: 'oklch(63% 0.19 290)' },
   ].filter(s => s.value > 0).map(s => ({ ...s, sub: `${patrimoineTotal > 0 ? ((s.value / patrimoineTotal) * 100).toFixed(1) : 0}%` }))
+
+  const pricesLoaded = Object.keys(prices).length > 0 || (portfolio.pea.positions.length === 0 && portfolio.crypto.positions.length === 0)
 
   if (loading) return <div style={{ padding: 32, color: '#636385' }}>Chargement…</div>
 
@@ -198,6 +244,43 @@ export default function SynthesePage() {
             <>
               <Treemap items={allocItems} height={180} />
               <div style={{ marginTop: 10 }}><TreemapLegend items={allocItems} /></div>
+              {/* Résumé investi vs marché */}
+              {(peaValue > 0 || cryptoValue > 0) && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #1c1c27', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {peaValue > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: '#636385' }}>Actions/ETF — investi</span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: '#636385' }}>{fmt(peaCost)}</span>
+                        <span style={{ color: 'oklch(65% 0.18 148)', fontWeight: 600 }}>
+                          {!pricesLoaded ? '…' : fmt(peaValue)}
+                          {pricesLoaded && peaCost > 0 && (
+                            <span style={{ fontSize: 11, marginLeft: 4, color: peaValue >= peaCost ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                              ({peaValue >= peaCost ? '+' : ''}{((peaValue - peaCost) / peaCost * 100).toFixed(1)}%)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {cryptoValue > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: '#636385' }}>Crypto — investi</span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: '#636385' }}>{fmt(cryptoCost)}</span>
+                        <span style={{ color: 'oklch(68% 0.17 55)', fontWeight: 600 }}>
+                          {!pricesLoaded ? '…' : fmt(cryptoValue)}
+                          {pricesLoaded && cryptoCost > 0 && (
+                            <span style={{ fontSize: 11, marginLeft: 4, color: cryptoValue >= cryptoCost ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                              ({cryptoValue >= cryptoCost ? '+' : ''}{((cryptoValue - cryptoCost) / cryptoCost * 100).toFixed(1)}%)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div style={{ color: '#636385', fontSize: 12 }}>Aucune donnée</div>

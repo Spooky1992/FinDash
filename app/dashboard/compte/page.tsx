@@ -187,34 +187,35 @@ function Calendar({ transactions }: { transactions: ReturnType<typeof useAppData
 
           return (
             <div key={day}
+              className="cal-day-cell"
               onClick={() => setSelectedDay(isSelected ? null : day)}
               style={{
                 borderRadius: 10, padding: '6px 4px', cursor: txs.length > 0 ? 'pointer' : 'default', minHeight: 64,
                 background: isSelected ? 'oklch(63% 0.19 250 / 0.15)' : isToday ? '#1c1c27' : 'transparent',
                 border: `1px solid ${isSelected ? 'oklch(63% 0.19 250 / 0.6)' : isToday ? 'oklch(63% 0.19 250 / 0.4)' : '#1c1c27'}`,
-                transition: 'background 0.15s',
+                transition: 'background 0.15s', overflow: 'hidden',
               }}>
               <div style={{ textAlign: 'right', fontSize: 11, fontWeight: isToday ? 700 : 400,
                 color: isToday ? 'oklch(63% 0.19 250)' : txs.length > 0 ? '#e8e8f2' : '#3a3a50',
                 marginBottom: 4 }}>{day}</div>
-              {/* Mini transaction dots */}
+              {/* Mini transaction dots + labels (labels masqués sur mobile) */}
               {txs.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {txs.slice(0, 3).map(tx => (
                     <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
                         background: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : 'oklch(62% 0.20 25)' }} />
-                      <span style={{ fontSize: 9, color: '#636385', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                      <span className="cal-day-text" style={{ fontSize: 9, color: '#636385', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                         {tx.label}
                       </span>
                     </div>
                   ))}
-                  {txs.length > 3 && <div style={{ fontSize: 8, color: '#636385', paddingLeft: 8 }}>+{txs.length - 3} autres</div>}
+                  {txs.length > 3 && <div className="cal-day-text" style={{ fontSize: 8, color: '#636385', paddingLeft: 8 }}>+{txs.length - 3}</div>}
                 </div>
               )}
-              {/* Totals */}
+              {/* Totals (masqués sur mobile) */}
               {totals && (
-                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <div className="cal-day-amounts" style={{ marginTop: 4 }}>
                   {hasIncome  && <div style={{ fontSize: 9, color: 'oklch(65% 0.18 148)', fontWeight: 600, textAlign: 'right' }}>+{totals.income.toLocaleString('fr-FR')} €</div>}
                   {hasExpense && <div style={{ fontSize: 9, color: 'oklch(62% 0.20 25)',  fontWeight: 600, textAlign: 'right' }}>-{totals.expense.toLocaleString('fr-FR')} €</div>}
                 </div>
@@ -382,32 +383,70 @@ export default function ComptePage() {
       {compte.historique.length > 0 && (
         <div style={cardCss}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Historique mensuel</div>
-          <div className="table-scroll">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
-            <thead><tr>
-              {['Mois', 'Avant', 'Revenus', 'Dépenses', 'Épargne', 'Après', 'Δ', ''].map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 5 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {compte.historique.map(h => (
-                <tr key={h.key} style={{ borderBottom: '1px solid #1c1c27' }}>
-                  <td style={{ padding: '8px 10px', fontSize: 13, color: '#e8e8f2', fontWeight: 600 }}>{h.label}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{fmt(h.avant)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(65% 0.18 148)' }}>+{fmt(h.revenus)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(62% 0.20 25)' }}>-{fmt(h.depenses)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(63% 0.19 250)' }}>{fmt(h.epargne)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(h.apres)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'right', fontWeight: 600, color: h.delta >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
-                    {h.delta >= 0 ? '+' : ''}{fmt(h.delta)}
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                    <button onClick={() => deleteHistorique(h.key)} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>🗑</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+          {/* Tableau — desktop */}
+          <div className="tx-table">
+            <div className="table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
+              <thead><tr>
+                {['Mois', 'Avant', 'Revenus', 'Dépenses', 'Épargne', 'Après', 'Δ', ''].map((h, i) => (
+                  <th key={i} style={{ padding: '6px 10px', textAlign: i >= 5 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {compte.historique.map(h => (
+                  <tr key={h.key} style={{ borderBottom: '1px solid #1c1c27' }}>
+                    <td style={{ padding: '8px 10px', fontSize: 13, color: '#e8e8f2', fontWeight: 600 }}>{h.label}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{fmt(h.avant)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(65% 0.18 148)' }}>+{fmt(h.revenus)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(62% 0.20 25)' }}>-{fmt(h.depenses)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'oklch(63% 0.19 250)' }}>{fmt(h.epargne)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: '#e8e8f2', textAlign: 'right', fontWeight: 600 }}>{fmt(h.apres)}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'right', fontWeight: 600, color: h.delta >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                      {h.delta >= 0 ? '+' : ''}{fmt(h.delta)}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <button onClick={() => deleteHistorique(h.key)} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer' }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          {/* Cartes — mobile */}
+          <div className="tx-mobile-list" style={{ gap: 0, margin: '0 -20px -20px' }}>
+            {compte.historique.map((h, idx) => (
+              <div key={h.key} style={{
+                padding: '14px 20px',
+                borderTop: idx > 0 ? '1px solid #1c1c27' : 'none',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#e8e8f2' }}>{h.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: h.delta >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+                      {h.delta >= 0 ? '+' : ''}{fmt(h.delta)}
+                    </span>
+                    <button onClick={() => deleteHistorique(h.key)} style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', padding: 0, minHeight: 'auto', fontSize: 14 }}>🗑</button>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {[
+                    { label: 'Avant',    val: fmt(h.avant),    color: '#636385' },
+                    { label: 'Revenus',  val: `+${fmt(h.revenus)}`,  color: 'oklch(65% 0.18 148)' },
+                    { label: 'Dépenses', val: `-${fmt(h.depenses)}`, color: 'oklch(62% 0.20 25)' },
+                    { label: 'Épargne',  val: fmt(h.epargne),  color: 'oklch(63% 0.19 250)' },
+                    { label: 'Après',    val: fmt(h.apres),    color: '#e8e8f2' },
+                  ].map(r => (
+                    <div key={r.label}>
+                      <div style={{ fontSize: 10, color: '#636385', marginBottom: 2 }}>{r.label}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: r.color }}>{r.val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -428,37 +467,70 @@ export default function ComptePage() {
             ))}
           </div>
         </div>
-        <div className="table-scroll">
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
-          <thead><tr>
-            {['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'].map((h, i) => (
-              <th key={i} style={{ padding: '6px 10px', textAlign: i >= 4 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {sortedTx.slice(0, 50).map(tx => (
-              <tr key={tx.id} style={{ borderBottom: '1px solid #1c1c27' }}>
-                <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{tx.date}</td>
-                <td style={{ padding: '8px 10px', fontSize: 13, color: '#e8e8f2' }}>{tx.label}</td>
-                <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{tx.category ?? '—'}</td>
-                <td style={{ padding: '8px 10px' }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 5,
-                    background: tx.type === 'income' ? 'oklch(65% 0.18 148 / 0.15)' : tx.type === 'saving' ? 'oklch(63% 0.19 250 / 0.15)' : 'oklch(62% 0.20 25 / 0.15)',
-                    color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : 'oklch(62% 0.20 25)' }}>
-                    {tx.type === 'income' ? 'Revenu' : tx.type === 'saving' ? 'Épargne' : tx.type === 'invest' ? 'Invest.' : 'Dépense'}
-                  </span>
-                </td>
-                <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+
+        {/* Tableau — desktop */}
+        <div className="tx-table">
+          <div className="table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+            <thead><tr>
+              {['Date', 'Libellé', 'Catégorie', 'Type', 'Montant'].map((h, i) => (
+                <th key={i} style={{ padding: '6px 10px', textAlign: i >= 4 ? 'right' : 'left', fontSize: 11, color: '#636385', borderBottom: '1px solid #252535', fontWeight: 600 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {sortedTx.slice(0, 50).map(tx => (
+                <tr key={tx.id} style={{ borderBottom: '1px solid #1c1c27' }}>
+                  <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{tx.date}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, color: '#e8e8f2' }}>{tx.label}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 12, color: '#636385' }}>{tx.category ?? '—'}</td>
+                  <td style={{ padding: '8px 10px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 5,
+                      background: tx.type === 'income' ? 'oklch(65% 0.18 148 / 0.15)' : tx.type === 'saving' ? 'oklch(63% 0.19 250 / 0.15)' : 'oklch(62% 0.20 25 / 0.15)',
+                      color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : 'oklch(62% 0.20 25)' }}>
+                      {tx.type === 'income' ? 'Revenu' : tx.type === 'saving' ? 'Épargne' : tx.type === 'invest' ? 'Invest.' : 'Dépense'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600, textAlign: 'right',
+                    color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : '#e8e8f2' }}>
+                    {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                  </td>
+                </tr>
+              ))}
+              {sortedTx.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#636385', fontSize: 13 }}>Aucune transaction</td></tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        {/* Cartes — mobile */}
+        <div className="tx-mobile-list" style={{ gap: 0, margin: '0 -20px -20px' }}>
+          {sortedTx.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: '#636385', fontSize: 13 }}>Aucune transaction</div>
+          ) : sortedTx.slice(0, 50).map((tx, idx) => (
+            <div key={tx.id} style={{
+              padding: '14px 20px',
+              borderTop: idx > 0 ? '1px solid #1c1c27' : 'none',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8f2', flex: 1 }}>{tx.label}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap',
                   color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : '#e8e8f2' }}>
                   {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
-                </td>
-              </tr>
-            ))}
-            {sortedTx.length === 0 && (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#636385', fontSize: 13 }}>Aucune transaction</td></tr>
-            )}
-          </tbody>
-        </table>
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: '#636385' }}>{tx.date}</span>
+                {tx.category && <span style={{ fontSize: 12, color: '#636385' }}>· {tx.category}</span>}
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 5,
+                  background: tx.type === 'income' ? 'oklch(65% 0.18 148 / 0.15)' : tx.type === 'saving' ? 'oklch(63% 0.19 250 / 0.15)' : 'oklch(62% 0.20 25 / 0.15)',
+                  color: tx.type === 'income' ? 'oklch(65% 0.18 148)' : tx.type === 'saving' ? 'oklch(63% 0.19 250)' : 'oklch(62% 0.20 25)' }}>
+                  {tx.type === 'income' ? 'Revenu' : tx.type === 'saving' ? 'Épargne' : tx.type === 'invest' ? 'Invest.' : 'Dépense'}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

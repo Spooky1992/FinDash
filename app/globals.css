@@ -86,6 +86,9 @@ text { user-select: none; }
 /* ── Tables scrollables ──────────────────────────────────────────────────────*/
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* ── Transactions mobile list (hidden on desktop) ────────────────────────────*/
+.tx-mobile-list { display: none; }
+
 /* ── Page padding ────────────────────────────────────────────────────────────*/
 .page-pad { padding: 28px 32px; }
 
@@ -244,6 +247,10 @@ text { user-select: none; }
   .pos-table { display: none !important; }
   .pos-cards { display: flex; flex-direction: column; gap: 10px; }
 
+  /* ── Transactions : cartes au lieu de tableau ────────────────────────────*/
+  .tx-table { display: none !important; }
+  .tx-mobile-list { display: flex; flex-direction: column; }
+
   /* ── Modales : sheet depuis le bas ──────────────────────────────────────*/
   .modal-sheet-wrap { align-items: flex-end; }
   .modal-sheet { border-radius: 20px 20px 0 0 !important; border-bottom: none !important; width: 100% !important; max-width: 100% !important; }
@@ -260,9 +267,15 @@ text { user-select: none; }
 .compte-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .compte-stats { display: flex; gap: 20px; font-size: 12px; }
 
+
 @media (max-width: 768px) {
   .compte-card { flex-direction: column; align-items: flex-start; gap: 12px; }
   .compte-stats { gap: 12px; flex-wrap: wrap; }
+
+  /* ── Calendrier : cellules simplifiées, pas de texte qui déborde ─────────*/
+  .cal-day-text    { display: none; }
+  .cal-day-amounts { display: none; }
+  .cal-day-cell    { min-height: 38px !important; padding: 4px 2px !important; border-radius: 6px !important; }
 
   /* Formulaire tx : type pills + bouton submit en colonne */
   .tx-form-actions { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
