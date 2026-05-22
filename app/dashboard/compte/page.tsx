@@ -141,6 +141,14 @@ function Calendar({ transactions }: { transactions: ReturnType<typeof useAppData
     return map
   }, [transactions, calMonth])
 
+  const monthTotals = useMemo(() => {
+    const monthTxs = transactions.filter(t => t.date.startsWith(calMonth))
+    return {
+      income:  monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+      expense: monthTxs.filter(t => t.type !== 'income').reduce((s, t) => s + t.amount, 0),
+    }
+  }, [transactions, calMonth])
+
   const dayTotals = useMemo(() => {
     const map: Record<number, { income: number; expense: number }> = {}
     for (const [d, txs] of Object.entries(txByDay)) {
@@ -163,6 +171,24 @@ function Calendar({ transactions }: { transactions: ReturnType<typeof useAppData
           <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', minWidth: 90, textAlign: 'center' }}>{monthLabel(calMonth)}</span>
           <button onClick={() => { setCalMonth(addMonths(calMonth, 1)); setSelectedDay(null) }}
             style={{ background: 'none', border: 'none', color: '#636385', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>›</button>
+        </div>
+      </div>
+
+      {/* Totaux du mois */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 120, background: 'oklch(65% 0.18 148 / 0.08)', border: '1px solid oklch(65% 0.18 148 / 0.2)', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontSize: 10, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Reçu</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(65% 0.18 148)' }}>+{fmt(monthTotals.income)}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 120, background: 'oklch(62% 0.20 25 / 0.08)', border: '1px solid oklch(62% 0.20 25 / 0.2)', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontSize: 10, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Dépensé</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(62% 0.20 25)' }}>−{fmt(monthTotals.expense)}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 120, background: '#1c1c27', border: '1px solid #252535', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontSize: 10, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Net</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: monthTotals.income - monthTotals.expense >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' }}>
+            {monthTotals.income - monthTotals.expense >= 0 ? '+' : ''}{fmt(monthTotals.income - monthTotals.expense)}
+          </div>
         </div>
       </div>
 
