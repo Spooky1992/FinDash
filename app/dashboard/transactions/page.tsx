@@ -19,9 +19,11 @@ export default function TransactionsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [catFilter, setCatFilter] = useState('all')
 
   const filtered = transactions
     .filter(t => typeFilter === 'all' || t.type === typeFilter)
+    .filter(t => catFilter === 'all' || (t.category ?? '') === catFilter)
     .filter(t => !search || t.label.toLowerCase().includes(search.toLowerCase()) || (t.category ?? '').toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       const v = sortBy === 'date' ? a.date.localeCompare(b.date) : a.amount - b.amount
@@ -194,6 +196,11 @@ export default function TransactionsPage() {
           <input placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)}
             style={{ ...inputCss, paddingLeft: 32, width: 220 }} />
         </div>
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
+          style={{ ...inputCss, width: 'auto', cursor: 'pointer', paddingRight: 28 }}>
+          <option value="all">Toutes catégories</option>
+          {TX_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[{ v: 'all', l: 'Tous', color: 'oklch(63% 0.19 250)' }, ...TX_TYPES.map(t => ({ v: t.value, l: t.label, color: t.color }))].map(f => {
             const active = typeFilter === f.v
@@ -312,6 +319,59 @@ export default function TransactionsPage() {
           </table>
           </div>
         )}
+      </div>
+
+      {/* Récap par catégorie */}
+      <CategoryRecap transactions={transactions} />
+    </div>
+  )
+}
+
+function CategoryRecap({ transactions }: { transactions: Transaction[] }) {
+  const byCategory: Record<string, { total: number; count: number }> = {}
+  for (const tx of transactions) {
+    if (tx.type === 'income') continue
+    const cat = tx.category || 'Sans catégorie'
+    if (!byCategory[cat]) byCategory[cat] = { total: 0, count: 0 }
+    byCategory[cat].total += tx.amount
+    byCategory[cat].count += 1
+  }
+  const rows = Object.entries(byCategory)
+    .filter(([, { total }]) => total > 0)
+    .sort((a, b) => b[1].total - a[1].total)
+
+  if (rows.length === 0) return null
+
+  const grandTotal = rows.reduce((s, [, { total }]) => s + total, 0)
+
+  return (
+    <div style={cardCss}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2', marginBottom: 16 }}>Récap par catégorie</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map(([cat, { total, count }]) => {
+          const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0
+          return (
+            <div key={cat}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: '#e8e8f2', fontWeight: 500 }}>
+                  {cat}
+                  <span style={{ fontSize: 11, color: '#636385', marginLeft: 6 }}>({count} tx)</span>
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#e8e8f2' }}>
+                  {fmt(total)}
+                  <span style={{ fontSize: 11, color: '#636385', marginLeft: 6 }}>{pct.toFixed(1)}%</span>
+                </span>
+              </div>
+              <div style={{ height: 4, borderRadius: 3, background: '#252535' }}>
+                <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: 'oklch(63% 0.19 250)', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )
+        })}
+        <div style={{ borderTop: '1px solid #252535', paddingTop: 10, display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <span style={{ fontSize: 12, color: '#636385', fontWeight: 600 }}>Total dépenses</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#e8e8f2' }}>{fmt(grandTotal)}</span>
+        </div>
       </div>
     </div>
   )
