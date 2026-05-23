@@ -54,12 +54,17 @@ async function run() {
     }
   }
 
-  // 4. Compte
+  // 4. Compte courant (nouveau système multi-comptes)
   console.log('Migrating compte…')
   const compteData = data.compte ?? { solde: 0, derniereMaj: null, historique: [] }
-  await db.insert(schema.compte).values({
+  const compteId = `cpt-${userId}-default`
+  await db.insert(schema.comptes).values({
+    id:          compteId,
     userId,
+    nom:         'Compte courant',
+    type:        'courant',
     solde:       String(compteData.solde ?? 0),
+    isDefault:   true,
     derniereMaj: compteData.derniereMaj ?? null,
   })
 
@@ -67,6 +72,7 @@ async function run() {
     for (const h of compteData.historique) {
       await db.insert(schema.compteHistorique).values({
         userId,
+        compteId,
         key:      h.key,
         label:    h.label,
         avant:    String(h.avant),
