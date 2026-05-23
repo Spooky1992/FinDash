@@ -393,7 +393,7 @@ function CompteCard({ compte, idx, isActive, onSelect, onEdit, onDelete, onSetDe
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ComptePage() {
-  const { comptes, transactions, totalSolde, budget, monthPlans, createCompte, updateCompte, deleteCompte, setDefaultCompte, addHistorique, deleteHistorique, loading } = useAppData()
+  const { comptes, transactions, totalSolde, budget, monthPlans, createCompte, updateCompte, deleteCompte, setDefaultCompte, deleteHistorique, loading } = useAppData()
 
   const [activeCompteId, setActiveCompteId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -404,27 +404,12 @@ export default function ComptePage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const curKey = currentMonthKey()
-  const resolved = useMemo(() => resolveBudget(budget, monthPlans, curKey), [budget, monthPlans, curKey])
-  const surplus  = calcSurplus(resolved)
 
   // Compte actif (sélectionné ou défaut)
   const comptesWithHistorique = comptes as (Compte & { historique: CompteHistorique[] })[]
   const defaultCompte = comptesWithHistorique.find(c => c.isDefault) ?? comptesWithHistorique[0]
   const activeCompte  = comptesWithHistorique.find(c => c.id === activeCompteId) ?? defaultCompte
 
-  const alreadyApplied = activeCompte?.derniereMaj === curKey
-
-  async function applyMonth() {
-    if (!activeCompte) return
-    const rev = resolved.incomes.reduce((s, i) => s + i.amount, 0)
-    const dep = resolved.expenses.reduce((s, cat) => s + cat.items.reduce((ss, i) => ss + i.amount, 0), 0)
-    const epa = resolved.savings.reduce((s, i) => s + i.amount, 0)
-    const avant = activeCompte.solde
-    const delta = -(dep + epa)
-    const apres = avant + delta
-    await updateCompte(activeCompte.id, { solde: apres, derniereMaj: curKey })
-    await addHistorique(activeCompte.id, { key: curKey, label: monthLabel(curKey), avant, apres, revenus: rev, depenses: dep, epargne: epa, delta })
-  }
 
   const sortedTx = useMemo(() => {
     if (!activeCompte) return []
@@ -495,7 +480,7 @@ export default function ComptePage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { label: 'Surplus mensuel', val: surplus, color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
+                { label: 'Surplus mensuel', val: calcSurplus(resolveBudget(budget, monthPlans, curKey)), color: calcSurplus(resolveBudget(budget, monthPlans, curKey)) >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)' },
                 { label: 'Dans 6 mois',  val: (() => { let c = activeCompte.solde; for (let i = 0; i < 6;  i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })(), color: 'oklch(63% 0.19 250)' },
                 { label: 'Dans 12 mois', val: (() => { let c = activeCompte.solde; for (let i = 0; i < 12; i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })(), color: 'oklch(63% 0.19 250)' },
               ].map(r => (
@@ -505,15 +490,6 @@ export default function ComptePage() {
                 </div>
               ))}
             </div>
-            <div style={{ borderTop: '1px solid #252535', paddingTop: 12 }}>
-              {alreadyApplied ? (
-                <div style={{ fontSize: 11, color: '#636385', textAlign: 'center' }}>✓ {monthLabel(curKey)} déjà appliqué</div>
-              ) : (
-                <button onClick={applyMonth} style={{ ...btnCss(), width: '100%', fontSize: 12 }}>
-                  Déduire dépenses {monthLabel(curKey)}
-                </button>
-              )}
-            </div>
           </div>
           <div style={cardCss}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -522,7 +498,7 @@ export default function ComptePage() {
                 {fmt((() => { let c = activeCompte.solde; for (let i = 0; i < 13; i++) { const k = addMonths(curKey, i); c += calcSurplus(resolveBudget(budget, monthPlans, k)) } return c })())} dans 13 mois
               </span>
             </div>
-            <ProjectionChart solde={activeCompte.solde} surplus={surplus} budget={budget} monthPlans={monthPlans} />
+            <ProjectionChart solde={activeCompte.solde} surplus={calcSurplus(resolveBudget(budget, monthPlans, curKey))} budget={budget} monthPlans={monthPlans} />
           </div>
         </div>
       )}
