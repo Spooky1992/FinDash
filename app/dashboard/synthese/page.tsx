@@ -121,7 +121,7 @@ function ProjectionChart({ points, labels, color = 'oklch(63% 0.19 250)' }: {
 }
 
 export default function SynthesePage() {
-  const { budget, monthPlans, totalSolde, transactions, portfolio, loading } = useAppData()
+  const { budget, monthPlans, totalSolde, transactions, portfolio, livrets, loading } = useAppData()
 
   // Live prices
   const [prices, setPrices]               = useState<Record<string, number>>({})
@@ -175,7 +175,7 @@ export default function SynthesePage() {
   const peaCost       = portfolio.pea.positions.reduce((s, p) => s + p.quantity * cpuEur(p as never), 0)
   const cryptoValue   = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
   const cryptoCost    = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * cpuEur(p as never), 0)
-  const livretsTotal  = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
+  const livretsTotal  = livrets.reduce((s, l) => s + l.solde, 0)
   const immoTotal     = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
   const patrimoineTotal = peaValue + cryptoValue + livretsTotal + immoTotal + totalSolde
 

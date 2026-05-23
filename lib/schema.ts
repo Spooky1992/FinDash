@@ -11,16 +11,31 @@ export const users = pgTable('users', {
   createdAt:    timestamp('created_at').defaultNow().notNull(),
 })
 
-// ── Comptes bancaires (multi-comptes par user) ─────────────────
+// ── Comptes (courant | livret | crypto | autre) ────────────────
 export const comptes = pgTable('comptes', {
   id:          varchar('id', { length: 64 }).primaryKey(),
   userId:      integer('user_id').notNull().references(() => users.id),
   nom:         text('nom').notNull(),
-  type:        varchar('type', { length: 20 }).notNull().default('courant'), // courant|autre
+  type:        varchar('type', { length: 20 }).notNull().default('courant'), // courant|livret|crypto|autre
   solde:       numeric('solde', { precision: 12, scale: 2 }).notNull().default('0'),
   isDefault:   boolean('is_default').notNull().default(false),
+  // Champs spécifiques livrets
+  taux:        numeric('taux', { precision: 6, scale: 3 }),  // taux annuel % (ex: 3.000)
   derniereMaj: varchar('derniere_maj', { length: 7 }),
   updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ── Mouvements livrets (dépôt / retrait / intérêt) ────────────
+export const livretMoves = pgTable('livret_moves', {
+  id:         varchar('id', { length: 64 }).primaryKey(),
+  userId:     integer('user_id').notNull().references(() => users.id),
+  livretId:   varchar('livret_id', { length: 64 }).notNull().references(() => comptes.id),
+  date:       date('date').notNull(),
+  type:       varchar('type', { length: 20 }).notNull(), // depot|retrait|interet
+  label:      text('label').notNull(),
+  amount:     numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  soldeApres: numeric('solde_apres', { precision: 12, scale: 2 }).notNull(),
+  createdAt:  timestamp('created_at').defaultNow().notNull(),
 })
 
 // ── Transactions ───────────────────────────────────────────────

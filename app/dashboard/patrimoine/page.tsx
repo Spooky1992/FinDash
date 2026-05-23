@@ -81,7 +81,7 @@ function VerticalBarChart({ budget }: { budget: ReturnType<typeof useAppData>['b
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PatrimoinePage() {
-  const { portfolio, budget, savePortfolio, loading } = useAppData()
+  const { portfolio, budget, livrets, savePortfolio, loading } = useAppData()
   const [tab, setTab] = useState<Tab>('pea')
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [liveCurrencies, setLiveCurrencies] = useState<Record<string, string>>({})
@@ -195,8 +195,8 @@ export default function PatrimoinePage() {
 
   const peaTotal     = portfolio.pea.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
   const cryptoTotal  = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * liveEur(p), 0)
-  const livretsTotal       = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
-  const livretsInteretsAn  = portfolio.livrets.accounts.reduce((s, l) => s + l.solde * (l.rate / 100), 0)
+  const livretsTotal       = livrets.reduce((s, l) => s + l.solde, 0)
+  const livretsInteretsAn  = livrets.reduce((s, l) => s + l.solde * ((l.taux ?? 0) / 100), 0)
   const immoTotal    = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
   const grandTotal   = peaTotal + cryptoTotal + livretsTotal + immoTotal
 
@@ -274,7 +274,10 @@ export default function PatrimoinePage() {
       <div style={cardCss}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8f2' }}>{TABS.find(t => t.key === tab)?.label}</span>
-          <button onClick={openAdd} style={btnCss()}>+ Ajouter</button>
+          {tab === 'livrets'
+            ? <a href="/dashboard/livrets" style={{ ...btnCss(), textDecoration: 'none', fontSize: 13 }}>Gérer les livrets</a>
+            : <button onClick={openAdd} style={btnCss()}>+ Ajouter</button>
+          }
         </div>
 
         {/* ── Desktop tables ── */}
@@ -351,19 +354,18 @@ export default function PatrimoinePage() {
                 ))}
               </tr></thead>
               <tbody>
-                {portfolio.livrets.accounts.map(liv => (
+                {livrets.map(liv => (
                   <tr key={liv.id} style={{ borderBottom: '1px solid #1c1c27' }}>
-                    <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{liv.name}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{liv.rate}%</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12, color: 'oklch(65% 0.16 185)', textAlign: 'right' }}>+{fmt(liv.solde * (liv.rate / 100))}</td>
+                    <td style={{ padding: '10px 10px', fontSize: 13, color: '#e8e8f2' }}>{liv.nom}</td>
+                    <td style={{ padding: '10px 10px', fontSize: 12, color: '#636385' }}>{liv.taux ?? 0}%</td>
+                    <td style={{ padding: '10px 10px', fontSize: 12, color: 'oklch(65% 0.16 185)', textAlign: 'right' }}>+{fmt(liv.solde * ((liv.taux ?? 0) / 100))}</td>
                     <td style={{ padding: '10px 10px', fontSize: 13, fontWeight: 600, color: '#e8e8f2', textAlign: 'right' }}>{fmt(liv.solde)}</td>
                     <td style={{ padding: '10px 10px', textAlign: 'right' }}>
-                      <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', marginRight: 4 }}>✏</button>
-                      <button onClick={() => deleteItem(liv.id, 'livrets')} style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px' }}>🗑</button>
+                      <a href="/dashboard/livrets" style={{ background: 'none', border: '1px solid #252535', borderRadius: 6, color: '#636385', cursor: 'pointer', padding: '4px 8px', fontSize: 12, textDecoration: 'none' }}>Gérer</a>
                     </td>
                   </tr>
                 ))}
-                {portfolio.livrets.accounts.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret</td></tr>}
+                {livrets.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#636385' }}>Aucun livret — <a href="/dashboard/livrets" style={{ color: 'oklch(63% 0.19 250)' }}>Créer un livret</a></td></tr>}
               </tbody>
             </table>
           </div>
@@ -448,20 +450,19 @@ export default function PatrimoinePage() {
           })()}
 
           {tab === 'livrets' && (() => {
-            if (portfolio.livrets.accounts.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucun livret</div>
-            return portfolio.livrets.accounts.map(liv => (
+            if (livrets.length === 0) return <div style={{ color: '#636385', fontSize: 13, padding: '12px 0' }}>Aucun livret — <a href="/dashboard/livrets" style={{ color: 'oklch(63% 0.19 250)' }}>Créer un livret</a></div>
+            return livrets.map(liv => (
               <div key={liv.id} style={{ background: '#1c1c27', borderRadius: 12, padding: '14px 16px', border: '1px solid #252535' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>{liv.name}</div>
-                    <div style={{ fontSize: 12, color: '#636385', marginTop: 2 }}>Taux : {liv.rate}%</div>
-                    <div style={{ fontSize: 12, color: 'oklch(65% 0.16 185)', marginTop: 2 }}>+{fmt(liv.solde * (liv.rate / 100))} / an</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#e8e8f2' }}>{liv.nom}</div>
+                    <div style={{ fontSize: 12, color: '#636385', marginTop: 2 }}>Taux : {liv.taux ?? 0}%</div>
+                    <div style={{ fontSize: 12, color: 'oklch(65% 0.16 185)', marginTop: 2 }}>+{fmt(liv.solde * ((liv.taux ?? 0) / 100))} / an</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'oklch(65% 0.16 185)' }}>{fmt(liv.solde)}</div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button onClick={() => openEdit(liv, 'livrets')} style={{ background: 'transparent', border: '1px solid #252535', borderRadius: 8, color: '#636385', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>✏ Éditer</button>
-                      <button onClick={() => deleteItem(liv.id, 'livrets')} style={{ background: 'transparent', border: '1px solid oklch(62% 0.20 25 / 0.4)', borderRadius: 8, color: 'oklch(62% 0.20 25)', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>🗑</button>
+                    <div style={{ marginTop: 8 }}>
+                      <a href="/dashboard/livrets" style={{ background: 'transparent', border: '1px solid #252535', borderRadius: 8, color: '#636385', cursor: 'pointer', padding: '6px 12px', fontSize: 13, textDecoration: 'none' }}>Gérer</a>
                     </div>
                   </div>
                 </div>
@@ -561,14 +562,6 @@ export default function PatrimoinePage() {
                   </div>
                 </div>
               )}
-            </>)}
-            {editItem._type === 'livrets' && (<>
-              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du compte</label>
-                <input value={editItem.name ?? ''} onChange={e => setEditItem(x => ({ ...x, name: e.target.value }))} style={inputCss} placeholder="Livret A, LDD…" /></div>
-              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Taux (%)</label>
-                <input type="number" step="0.01" value={(editItem as Livret).rate ?? ''} onChange={e => setEditItem(x => ({ ...x, rate: parseFloat(e.target.value) }))} style={inputCss} /></div>
-              <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Solde (€)</label>
-                <input type="number" step="0.01" value={(editItem as Livret).solde ?? ''} onChange={e => setEditItem(x => ({ ...x, solde: parseFloat(e.target.value) }))} style={inputCss} /></div>
             </>)}
             {editItem._type === 'immo' && (<>
               <div><label style={{ fontSize: 12, color: '#636385', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nom du bien</label>

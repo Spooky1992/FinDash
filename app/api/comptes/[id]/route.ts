@@ -31,8 +31,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // Mise à jour normale (nom, type, solde, derniereMaj)
   const updates: Partial<typeof comptes.$inferInsert> = {}
   if (body.nom !== undefined) updates.nom = String(body.nom).trim().slice(0, 100)
-  if (body.type !== undefined && ['courant', 'autre'].includes(body.type)) updates.type = body.type
+  if (body.type !== undefined && ['courant', 'livret', 'crypto', 'autre'].includes(body.type)) updates.type = body.type
   if (body.solde !== undefined) updates.solde = String(parseFloat(body.solde) || 0)
+  if (body.taux !== undefined) updates.taux = body.taux !== null ? String(parseFloat(body.taux) || 0) : null
   if (body.derniereMaj !== undefined) updates.derniereMaj = body.derniereMaj
   updates.updatedAt = new Date()
 

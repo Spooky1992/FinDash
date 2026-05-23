@@ -9,6 +9,7 @@ const NAV = [
   { href: '/dashboard/flux',            label: 'Flux',           icon: '⇌' },
   { href: '/dashboard/synthese',        label: 'Synthèse',       icon: '◎' },
   { href: '/dashboard/compte',          label: 'Mon Compte',     icon: '◈' },
+  { href: '/dashboard/livrets',         label: 'Livrets',        icon: '🏦' },
   { href: '/dashboard/patrimoine',      label: 'Patrimoine',     icon: '◆' },
   { href: '/dashboard/investissements', label: 'Investissements',icon: '▲' },
   { href: '/dashboard/simulation',      label: 'Simulation',     icon: '🧪' },

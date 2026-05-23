@@ -273,21 +273,24 @@ function Calendar({ transactions, compte }: {
 }
 
 // ── Modal ajout/édition compte ────────────────────────────────────────────────
+const L_STYLE: React.CSSProperties = { fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }
+
 function CompteModal({ initial, onSave, onClose }: {
   initial?: Compte
-  onSave: (nom: string, type: Compte['type'], solde: number) => Promise<void>
+  onSave: (nom: string, type: Compte['type'], solde: number, taux?: number | null) => Promise<void>
   onClose: () => void
 }) {
   const [nom, setNom]   = useState(initial?.nom ?? '')
   const [type, setType] = useState<Compte['type']>(initial?.type ?? 'courant')
   const [solde, setSolde] = useState(initial ? String(initial.solde) : '0')
+  const [taux, setTaux] = useState(initial?.taux != null ? String(initial.taux) : '')
   const [saving, setSaving] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!nom.trim()) return
     setSaving(true)
-    await onSave(nom.trim(), type, parseFloat(solde) || 0)
+    await onSave(nom.trim(), type, parseFloat(solde) || 0, taux ? parseFloat(taux) : null)
     setSaving(false)
     onClose()
   }
@@ -300,19 +303,27 @@ function CompteModal({ initial, onSave, onClose }: {
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nom du compte</label>
+            <label style={L_STYLE}>Nom du compte</label>
             <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex : Compte courant BNP" style={inputCss} required />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</label>
+            <label style={L_STYLE}>Type</label>
             <select value={type} onChange={e => setType(e.target.value as Compte['type'])} style={{ ...inputCss, cursor: 'pointer' }}>
               <option value="courant">Compte courant</option>
+              <option value="livret">Livret</option>
+              <option value="crypto">Crypto</option>
               <option value="autre">Autre</option>
             </select>
           </div>
+          {type === 'livret' && (
+            <div>
+              <label style={L_STYLE}>Taux annuel (%)</label>
+              <input type="number" step="0.001" min="0" value={taux} onChange={e => setTaux(e.target.value)} placeholder="Ex : 3" style={inputCss} />
+            </div>
+          )}
           {!initial && (
             <div>
-              <label style={{ fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Solde initial (€)</label>
+              <label style={L_STYLE}>Solde initial (€)</label>
               <input type="number" step="0.01" value={solde} onChange={e => setSolde(e.target.value)} style={inputCss} />
             </div>
           )}
@@ -593,11 +604,11 @@ export default function ComptePage() {
       {showModal && (
         <CompteModal
           initial={editingCompte ?? undefined}
-          onSave={async (nom, type, solde) => {
+          onSave={async (nom, type, solde, taux) => {
             if (editingCompte) {
-              await updateCompte(editingCompte.id, { nom, type })
+              await updateCompte(editingCompte.id, { nom, type, taux: taux ?? null })
             } else {
-              await createCompte(nom, type, solde)
+              await createCompte(nom, type, solde, taux ?? null)
             }
           }}
           onClose={() => { setShowModal(false); setEditingCompte(null) }}

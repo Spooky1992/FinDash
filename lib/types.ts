@@ -19,10 +19,21 @@ export interface MonthPlan {
 export interface Compte {
   id: string
   nom: string
-  type: 'courant' | 'autre'
+  type: 'courant' | 'livret' | 'crypto' | 'autre'
   solde: number
   isDefault: boolean
+  taux: number | null       // taux annuel % pour les livrets
   derniereMaj: string | null
+}
+
+export interface LivretMove {
+  id: string
+  livretId: string
+  date: string
+  type: 'depot' | 'retrait' | 'interet'
+  label: string
+  amount: number
+  soldeApres: number
 }
 
 export interface Transaction {
@@ -80,6 +91,7 @@ export interface AppData {
   monthPlans: Record<string, MonthPlan>
   transactions: Transaction[]
   comptes: Compte[]
+  livretMoves: LivretMove[]
   portfolio: Portfolio
   loading: boolean
 }

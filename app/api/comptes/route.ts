@@ -19,6 +19,7 @@ function mapCompte(r: typeof comptes.$inferSelect) {
     type:        r.type,
     solde:       parseFloat(r.solde),
     isDefault:   r.isDefault,
+    taux:        r.taux != null ? parseFloat(r.taux) : null,
     derniereMaj: r.derniereMaj ?? null,
   }
 }
@@ -77,18 +78,19 @@ export async function POST(req: Request) {
   const db = getDb()
   const body = await req.json()
 
-  const { nom, type, solde } = body
+  const { nom, type, solde, taux } = body
   if (!nom || typeof nom !== 'string' || nom.length > 100)
     return NextResponse.json({ error: 'Invalid nom' }, { status: 400 })
-  if (!['courant', 'autre'].includes(type))
+  if (!['courant', 'livret', 'crypto', 'autre'].includes(type))
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
 
-  const id = crypto.randomBytes(8).toString('hex')
+  const id = `cpt-${crypto.randomBytes(8).toString('hex')}`
   await db.insert(comptes).values({
     id, userId,
     nom: nom.trim(),
     type,
     solde: String(parseFloat(solde) || 0),
+    taux:  taux != null ? String(parseFloat(taux) || 0) : null,
     isDefault: false,
   })
 
