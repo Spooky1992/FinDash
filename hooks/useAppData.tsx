@@ -13,6 +13,7 @@ interface Ctx extends AppData {
   // Helpers dérivés
   defaultCompte: Compte | null
   totalSolde: number
+  liquidites: number
   livrets: Compte[]
   // Budget
   saveBudget(b: Budget): Promise<void>
@@ -191,6 +192,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const defaultCompte = data.comptes.find(c => c.isDefault) ?? data.comptes[0] ?? null
   const totalSolde = data.comptes.reduce((s, c) => s + (c.solde ?? 0), 0)
+  const liquidites = data.comptes.filter(c => c.type === 'courant' || c.type === 'autre').reduce((s, c) => s + (c.solde ?? 0), 0)
   const livrets = data.comptes.filter(c => c.type === 'livret')
 
   return (
@@ -198,6 +200,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       ...data,
       defaultCompte,
       totalSolde,
+      liquidites,
       livrets,
       reload,
       saveBudget, saveMonthPlan,
