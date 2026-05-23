@@ -2,9 +2,10 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { users, budget, compte, portfolio } from '@/lib/schema'
+import { users, budget, comptes, portfolio } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
 
   await Promise.all([
     db.insert(budget).values({ userId: user.id, incomes: [], expenses: [], savings: [] }),
-    db.insert(compte).values({ userId: user.id, solde: '0' }),
+    db.insert(comptes).values({ id: `cpt-${crypto.randomBytes(6).toString('hex')}`, userId: user.id, nom: 'Compte courant', type: 'courant', solde: '0', isDefault: true }),
     db.insert(portfolio).values({ userId: user.id, data: [] }),
   ])
 

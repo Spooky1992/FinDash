@@ -121,7 +121,7 @@ function ProjectionChart({ points, labels, color = 'oklch(63% 0.19 250)' }: {
 }
 
 export default function SynthesePage() {
-  const { budget, monthPlans, compte, transactions, portfolio, loading } = useAppData()
+  const { budget, monthPlans, totalSolde, transactions, portfolio, loading } = useAppData()
 
   // Live prices
   const [prices, setPrices]               = useState<Record<string, number>>({})
@@ -177,7 +177,7 @@ export default function SynthesePage() {
   const cryptoCost    = portfolio.crypto.positions.reduce((s, p) => s + p.quantity * cpuEur(p as never), 0)
   const livretsTotal  = portfolio.livrets.accounts.reduce((s, l) => s + l.solde, 0)
   const immoTotal     = portfolio.immo.properties.reduce((s, i) => s + i.value, 0)
-  const patrimoineTotal = peaValue + cryptoValue + livretsTotal + immoTotal + compte.solde
+  const patrimoineTotal = peaValue + cryptoValue + livretsTotal + immoTotal + totalSolde
 
   // Dépenses par catégorie (ce mois)
   const depCat = resolved.expenses.map(cat => ({
@@ -187,7 +187,7 @@ export default function SynthesePage() {
 
   // Projection solde (7 points : solde actuel + 6 mois)
   const { projPoints, projLabels } = useMemo(() => {
-    let s = compte.solde
+    let s = totalSolde
     const pts = [s]
     const lbls = ['Auj.']
     for (let i = 0; i < 6; i++) {
@@ -196,14 +196,14 @@ export default function SynthesePage() {
       lbls.push(monthLabel(addMonths(curKey, i)))
     }
     return { projPoints: pts, projLabels: lbls }
-  }, [budget, monthPlans, curKey, compte.solde])
+  }, [budget, monthPlans, curKey, totalSolde])
 
   // Transactions récentes (30 derniers jours)
   const recentTx = transactions.slice(0, 10)
 
   // Allocation patrimoine (treemap)
   const allocItems: TreemapItem[] = [
-    { label: 'Liquidités',  value: compte.solde, color: 'oklch(63% 0.19 250)' },
+    { label: 'Liquidités',  value: totalSolde, color: 'oklch(63% 0.19 250)' },
     { label: 'Actions/ETF', value: peaValue,      color: 'oklch(65% 0.18 148)' },
     { label: 'Crypto',      value: cryptoValue,   color: 'oklch(68% 0.17 55)'  },
     { label: 'Livrets',     value: livretsTotal,  color: 'oklch(65% 0.16 185)' },
@@ -222,7 +222,7 @@ export default function SynthesePage() {
       <div className="grid-5">
         {[
           { label: 'Patrimoine',   val: patrimoineTotal, color: 'oklch(65% 0.18 148)', fmt: true },
-          { label: 'Solde compte', val: compte.solde,    color: compte.solde >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fmt: true },
+          { label: 'Liquidités',   val: totalSolde,       color: totalSolde >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fmt: true },
           { label: 'Revenus/mois', val: totalRevenu,     color: 'oklch(65% 0.18 148)', fmt: true },
           { label: 'Surplus/mois', val: surplus,         color: surplus >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fmt: true },
           { label: 'Taux épargne', val: tauxEpargne,     color: 'oklch(63% 0.19 250)', fmt: false },

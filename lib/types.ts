@@ -16,10 +16,21 @@ export interface Budget {
 export interface MonthPlan {
   incomes?: Income[]; expenses?: ExpenseCategory[]; savings?: Saving[]
 }
+export interface Compte {
+  id: string
+  nom: string
+  type: 'courant' | 'autre'
+  solde: number
+  isDefault: boolean
+  derniereMaj: string | null
+}
+
 export interface Transaction {
   id: string; date: string; label: string
   category: string | null; amount: number
-  type: 'income' | 'expense' | 'saving' | 'invest'
+  type: 'income' | 'expense' | 'saving' | 'invest' | 'transfer'
+  compteId: string | null      // null = compte par défaut
+  toCompteId: string | null    // uniquement pour type=transfer
 }
 export interface CompteHistorique {
   key: string; label: string
@@ -68,7 +79,7 @@ export interface AppData {
   budget: Budget
   monthPlans: Record<string, MonthPlan>
   transactions: Transaction[]
-  compte: { solde: number; derniereMaj: string | null; historique: CompteHistorique[] }
+  comptes: Compte[]
   portfolio: Portfolio
   loading: boolean
 }

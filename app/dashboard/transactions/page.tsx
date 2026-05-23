@@ -1,28 +1,32 @@
 'use client'
 import { useState } from 'react'
 import { useAppData } from '@/hooks/useAppData'
-import { fmt, todayISO, currentMonthKey, TX_TYPES, TX_CATEGORIES, cardCss, inputCss } from '@/lib/utils'
+import { fmt, todayISO, TX_TYPES, TX_CATEGORIES, cardCss, inputCss } from '@/lib/utils'
 import type { Transaction } from '@/lib/types'
 
-const typeColor = (t: string) => TX_TYPES.find(x => x.value === t)?.color ?? '#636385'
-const typeLabel = (t: string) => TX_TYPES.find(x => x.value === t)?.label ?? t
+const ALL_TYPES = [...TX_TYPES, { value: 'transfer', label: 'Virement', color: 'oklch(68% 0.15 310)' }]
+const typeColor = (t: string) => ALL_TYPES.find(x => x.value === t)?.color ?? '#636385'
+const typeLabel = (t: string) => ALL_TYPES.find(x => x.value === t)?.label ?? t
 
 const labelStyle: React.CSSProperties = { fontSize: 11, color: '#636385', display: 'block', marginBottom: 5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }
 
 export default function TransactionsPage() {
-  const { transactions, compte, updateSolde, saveTx, deleteTx, loading } = useAppData()
-  const [form, setForm] = useState({ date: todayISO(), label: '', category: '', amount: '', type: 'expense' })
-  const [editingSolde, setEditingSolde] = useState(false)
-  const [soldeInput, setSoldeInput] = useState('')
+  const { transactions, comptes, defaultCompte, totalSolde, saveTx, deleteTx, loading } = useAppData()
+  const [form, setForm] = useState({ date: todayISO(), label: '', category: '', amount: '', type: 'expense', compteId: '', toCompteId: '' })
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [compteFilter, setCompteFilter] = useState('all')
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [catFilter, setCatFilter] = useState('all')
 
+  // Compte sélectionné dans le formulaire (défaut si vide)
+  const formCompteId = form.compteId || defaultCompte?.id || ''
+
   const filtered = transactions
     .filter(t => typeFilter === 'all' || t.type === typeFilter)
+    .filter(t => compteFilter === 'all' || t.compteId === compteFilter || (!t.compteId && compteFilter === (defaultCompte?.id ?? '')))
     .filter(t => catFilter === 'all' || (t.category ?? '') === catFilter)
     .filter(t => !search || t.label.toLowerCase().includes(search.toLowerCase()) || (t.category ?? '').toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
@@ -35,10 +39,15 @@ export default function TransactionsPage() {
     if (!form.label || !form.amount) return
     const amount = parseFloat(form.amount)
     const type = form.type as Transaction['type']
-    await saveTx({ date: form.date, label: form.label, category: form.category || null, amount, type })
-    const delta = type === 'income' ? amount : -amount
-    await updateSolde(compte.solde + delta)
-    setForm(f => ({ ...f, label: '', amount: '', category: '' }))
+    if (type === 'transfer' && !form.toCompteId) return
+    await saveTx({
+      date: form.date, label: form.label,
+      category: form.category || null,
+      amount, type,
+      compteId: formCompteId || null,
+      toCompteId: type === 'transfer' ? form.toCompteId : null,
+    })
+    setForm(f => ({ ...f, label: '', amount: '', category: '', toCompteId: '' }))
   }
 
   function toggleSort(col: 'date' | 'amount') {
@@ -49,7 +58,7 @@ export default function TransactionsPage() {
   const totalIn  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalOut = filtered.filter(t => t.type !== 'income').reduce((s, t) => s + t.amount, 0)
 
-  const selectedType = TX_TYPES.find(t => t.value === form.type)
+  const selectedType = ALL_TYPES.find(t => t.value === form.type)
 
   return (
     <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -60,69 +69,41 @@ export default function TransactionsPage() {
         <p style={{ fontSize: 12, color: '#636385', margin: '2px 0 0' }}>Suivez vos entrées et sorties d&apos;argent</p>
       </div>
 
-      {/* Carte compte */}
+      {/* Résumé soldes */}
       <div style={cardCss} className="compte-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 14, background: 'oklch(63% 0.19 250 / 0.15)', border: '1px solid oklch(63% 0.19 250 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>◈</div>
           <div>
-            <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Solde du compte</div>
-            {editingSolde ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="number" step="0.01" autoFocus
-                  value={soldeInput}
-                  onChange={e => setSoldeInput(e.target.value)}
-                  onKeyDown={async e => {
-                    if (e.key === 'Enter') {
-                      await updateSolde(parseFloat(soldeInput) || 0, currentMonthKey())
-                      setEditingSolde(false)
-                    }
-                    if (e.key === 'Escape') setEditingSolde(false)
-                  }}
-                  style={{ ...inputCss, width: 160, fontSize: 20, fontWeight: 700, padding: '4px 10px' }}
-                />
-                <button onClick={async () => { await updateSolde(parseFloat(soldeInput) || 0, currentMonthKey()); setEditingSolde(false) }}
-                  style={{ padding: '6px 14px', borderRadius: 8, background: 'oklch(63% 0.19 250)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Inter' }}>
-                  OK
-                </button>
-                <button onClick={() => setEditingSolde(false)}
-                  style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: '1px solid #252535', color: '#636385', fontSize: 13, cursor: 'pointer', fontFamily: 'Inter' }}>
-                  Annuler
-                </button>
-              </div>
-            ) : (
-              <div style={{ fontSize: 28, fontWeight: 700, color: compte.solde >= 0 ? '#e8e8f2' : 'oklch(62% 0.20 25)', lineHeight: 1.1 }}>
-                {fmt(compte.solde)}
-              </div>
-            )}
-            {compte.derniereMaj && !editingSolde && (
-              <div style={{ fontSize: 11, color: '#636385', marginTop: 3 }}>
-                Mis à jour le {new Date(compte.derniereMaj).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+            <div style={{ fontSize: 11, color: '#636385', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+              {comptes.length > 1 ? `Total — ${comptes.length} comptes` : (comptes[0]?.nom ?? 'Compte')}
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: totalSolde >= 0 ? '#e8e8f2' : 'oklch(62% 0.20 25)', lineHeight: 1.1 }}>
+              {fmt(totalSolde)}
+            </div>
+            {comptes.length > 1 && (
+              <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+                {comptes.map(c => (
+                  <span key={c.id} style={{ fontSize: 11, color: '#636385' }}>
+                    {c.nom} <span style={{ color: c.solde >= 0 ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 600 }}>{fmt(c.solde)}</span>
+                  </span>
+                ))}
               </div>
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-          {!editingSolde && (
-            <button onClick={() => { setSoldeInput(String(compte.solde)); setEditingSolde(true) }}
-              style={{ padding: '8px 18px', borderRadius: 9, background: 'transparent', border: '1px solid #252535', color: '#636385', fontSize: 13, cursor: 'pointer', fontFamily: 'Inter', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              ✏ Modifier le solde
-            </button>
-          )}
-          <div className="compte-stats">
-            <div>
-              <div style={{ color: '#636385', marginBottom: 2 }}>Entrées (période)</div>
-              <div style={{ color: 'oklch(65% 0.18 148)', fontWeight: 700 }}>+{fmt(totalIn)}</div>
-            </div>
-            <div>
-              <div style={{ color: '#636385', marginBottom: 2 }}>Sorties (période)</div>
-              <div style={{ color: 'oklch(62% 0.20 25)', fontWeight: 700 }}>−{fmt(totalOut)}</div>
-            </div>
-            <div>
-              <div style={{ color: '#636385', marginBottom: 2 }}>Net période</div>
-              <div style={{ color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 700 }}>
-                {totalIn - totalOut >= 0 ? '+' : ''}{fmt(totalIn - totalOut)}
-              </div>
+        <div className="compte-stats">
+          <div>
+            <div style={{ color: '#636385', marginBottom: 2 }}>Entrées (période)</div>
+            <div style={{ color: 'oklch(65% 0.18 148)', fontWeight: 700 }}>+{fmt(totalIn)}</div>
+          </div>
+          <div>
+            <div style={{ color: '#636385', marginBottom: 2 }}>Sorties (période)</div>
+            <div style={{ color: 'oklch(62% 0.20 25)', fontWeight: 700 }}>−{fmt(totalOut)}</div>
+          </div>
+          <div>
+            <div style={{ color: '#636385', marginBottom: 2 }}>Net période</div>
+            <div style={{ color: totalIn >= totalOut ? 'oklch(65% 0.18 148)' : 'oklch(62% 0.20 25)', fontWeight: 700 }}>
+              {totalIn - totalOut >= 0 ? '+' : ''}{fmt(totalIn - totalOut)}
             </div>
           </div>
         </div>
@@ -155,14 +136,33 @@ export default function TransactionsPage() {
             </div>
           </div>
 
-          {/* Ligne 2 : type + submit */}
+          {/* Ligne 2 : compte(s) */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <label style={labelStyle}>{form.type === 'transfer' ? 'Compte source' : 'Compte'}</label>
+              <select value={formCompteId} onChange={e => setForm(f => ({ ...f, compteId: e.target.value }))} style={{ ...inputCss, cursor: 'pointer' }}>
+                {comptes.map(c => <option key={c.id} value={c.id}>{c.nom}{c.isDefault ? ' (défaut)' : ''}</option>)}
+              </select>
+            </div>
+            {form.type === 'transfer' && (
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label style={labelStyle}>Compte destinataire</label>
+                <select value={form.toCompteId} onChange={e => setForm(f => ({ ...f, toCompteId: e.target.value }))} style={{ ...inputCss, cursor: 'pointer' }} required>
+                  <option value="">— Choisir —</option>
+                  {comptes.filter(c => c.id !== formCompteId).map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Ligne 3 : type + submit */}
           <div className="tx-form-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div className="tx-type-pills" style={{ display: 'flex', gap: 6 }}>
+            <div className="tx-type-pills" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: '#636385', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginRight: 4, alignSelf: 'center' }}>Type :</span>
-              {TX_TYPES.map(t => {
+              {ALL_TYPES.map(t => {
                 const active = form.type === t.value
                 return (
-                  <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, type: t.value }))}
+                  <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, type: t.value, toCompteId: '' }))}
                     style={{
                       padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter',
                       background: active ? t.color : 'transparent',
@@ -201,6 +201,13 @@ export default function TransactionsPage() {
           <option value="all">Toutes catégories</option>
           {TX_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        {comptes.length > 1 && (
+          <select value={compteFilter} onChange={e => setCompteFilter(e.target.value)}
+            style={{ ...inputCss, width: 'auto', cursor: 'pointer', paddingRight: 28 }}>
+            <option value="all">Tous les comptes</option>
+            {comptes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+        )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[{ v: 'all', l: 'Tous', color: 'oklch(63% 0.19 250)' }, ...TX_TYPES.map(t => ({ v: t.value, l: t.label, color: t.color }))].map(f => {
             const active = typeFilter === f.v
@@ -284,7 +291,7 @@ export default function TransactionsPage() {
                     <td style={{ padding: '11px 12px', textAlign: 'right' }}>
                       {isDeleting ? (
                         <div style={{ display: 'inline-flex', gap: 5 }}>
-                          <button onClick={async () => { const delta = tx.type === 'income' ? -tx.amount : tx.amount; await deleteTx(tx.id); await updateSolde(compte.solde + delta); setDeletingId(null) }}
+                          <button onClick={async () => { await deleteTx(tx.id); setDeletingId(null) }}
                             style={{
                               padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter',
                               background: 'oklch(62% 0.20 25)', border: 'none', color: '#fff',
@@ -359,7 +366,7 @@ export default function TransactionsPage() {
                     <div style={{ marginLeft: 'auto' }}>
                       {isDeleting ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={async () => { const delta = tx.type === 'income' ? -tx.amount : tx.amount; await deleteTx(tx.id); await updateSolde(compte.solde + delta); setDeletingId(null) }}
+                          <button onClick={async () => { await deleteTx(tx.id); setDeletingId(null) }}
                             style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter', background: 'oklch(62% 0.20 25)', border: 'none', color: '#fff', minHeight: 32 }}>
                             Confirmer
                           </button>

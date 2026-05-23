@@ -1,25 +1,31 @@
 'use client'
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import type { AppData, Budget, MonthPlan, Transaction, Portfolio } from '@/lib/types'
+import type { AppData, Budget, MonthPlan, Transaction, Portfolio, Compte, CompteHistorique } from '@/lib/types'
 import { DEFAULT_PORTFOLIO, DEFAULT_BUDGET, uid } from '@/lib/utils'
 
 const empty: AppData = {
   budget: DEFAULT_BUDGET, monthPlans: {}, transactions: [],
-  compte: { solde: 0, derniereMaj: null, historique: [] },
+  comptes: [],
   portfolio: DEFAULT_PORTFOLIO, loading: true,
 }
 
 interface Ctx extends AppData {
+  // Helpers dérivés
+  defaultCompte: Compte | null
+  totalSolde: number
   // Budget
   saveBudget(b: Budget): Promise<void>
   saveMonthPlan(key: string, plan: MonthPlan): Promise<void>
   // Transactions
   saveTx(tx: Omit<Transaction, 'id'>): Promise<void>
   deleteTx(id: string): Promise<void>
-  // Compte
-  updateSolde(solde: number, derniereMaj?: string): Promise<void>
-  addHistorique(entry: Omit<AppData['compte']['historique'][0], never>): Promise<void>
-  deleteHistorique(key: string): Promise<void>
+  // Comptes CRUD
+  createCompte(nom: string, type: Compte['type'], solde: number): Promise<Compte>
+  updateCompte(id: string, updates: Partial<Pick<Compte, 'nom' | 'type' | 'solde' | 'derniereMaj'>>): Promise<void>
+  deleteCompte(id: string): Promise<void>
+  setDefaultCompte(id: string): Promise<void>
+  addHistorique(compteId: string, entry: CompteHistorique): Promise<void>
+  deleteHistorique(compteId: string, key: string): Promise<void>
   // Portfolio
   savePortfolio(p: Portfolio): Promise<void>
   reload(): void
@@ -38,19 +44,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     Promise.all([
       fetch('/api/budget').then(r => r.json()),
       fetch('/api/transactions').then(r => r.json()),
-      fetch('/api/compte').then(r => r.json()),
+      fetch('/api/comptes').then(r => r.json()),
       fetch('/api/portfolio').then(r => r.json()),
-    ]).then(([b, txs, c, port]) => {
+    ]).then(([b, txs, comptesList, port]) => {
       if (cancelled) return
       setData({
         budget:       b.budget     ?? DEFAULT_BUDGET,
         monthPlans:   b.monthPlans ?? {},
         transactions: Array.isArray(txs) ? txs : [],
-        compte: {
-          solde:       c.solde       ?? 0,
-          derniereMaj: c.derniereMaj ?? null,
-          historique:  c.historique  ?? [],
-        },
+        comptes:      Array.isArray(comptesList) ? comptesList : [],
         portfolio: (port && typeof port === 'object' && 'pea' in port)
           ? port as Portfolio
           : DEFAULT_PORTFOLIO,
@@ -78,31 +80,79 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     const newTx = { ...tx, id: uid() }
     await fetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTx) })
-    setData(d => ({ ...d, transactions: [newTx, ...d.transactions] }))
+    // Recharger les comptes pour avoir les soldes à jour
+    const updated = await fetch('/api/comptes').then(r => r.json())
+    setData(d => ({
+      ...d,
+      transactions: [newTx as Transaction, ...d.transactions],
+      comptes: Array.isArray(updated) ? updated : d.comptes,
+    }))
   }, [])
 
   const deleteTx = useCallback(async (id: string) => {
     await fetch('/api/transactions', { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }) })
-    setData(d => ({ ...d, transactions: d.transactions.filter(t => t.id !== id) }))
+    const updated = await fetch('/api/comptes').then(r => r.json())
+    setData(d => ({
+      ...d,
+      transactions: d.transactions.filter(t => t.id !== id),
+      comptes: Array.isArray(updated) ? updated : d.comptes,
+    }))
   }, [])
 
-  const updateSolde = useCallback(async (solde: number, derniereMaj?: string) => {
-    await fetch('/api/compte', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ solde, derniereMaj: derniereMaj ?? data.compte.derniereMaj }) })
-    setData(d => ({ ...d, compte: { ...d.compte, solde, ...(derniereMaj ? { derniereMaj } : {}) } }))
-  }, [data.compte.derniereMaj])
+  const createCompte = useCallback(async (nom: string, type: Compte['type'], solde: number): Promise<Compte> => {
+    const res = await fetch('/api/comptes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nom, type, solde }) })
+    const { id } = await res.json()
+    const newCompte: Compte = { id, nom, type, solde, isDefault: false, derniereMaj: null }
+    setData(d => ({ ...d, comptes: [...d.comptes, { ...newCompte, historique: [] } as Compte & { historique: CompteHistorique[] }] }))
+    return newCompte
+  }, [])
 
-  const addHistorique = useCallback(async (entry: AppData['compte']['historique'][0]) => {
-    await fetch('/api/compte', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const updateCompte = useCallback(async (id: string, updates: Partial<Pick<Compte, 'nom' | 'type' | 'solde' | 'derniereMaj'>>) => {
+    await fetch(`/api/comptes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates) })
+    setData(d => ({ ...d, comptes: d.comptes.map(c => c.id === id ? { ...c, ...updates } : c) }))
+  }, [])
+
+  const deleteCompte = useCallback(async (id: string) => {
+    await fetch(`/api/comptes/${id}`, { method: 'DELETE' })
+    setData(d => {
+      const remaining = d.comptes.filter(c => c.id !== id)
+      // Si on a supprimé le défaut, promouvoir le premier
+      if (d.comptes.find(c => c.id === id)?.isDefault && remaining.length > 0) {
+        remaining[0] = { ...remaining[0], isDefault: true }
+      }
+      return { ...d, comptes: remaining }
+    })
+  }, [])
+
+  const setDefaultCompte = useCallback(async (id: string) => {
+    await fetch(`/api/comptes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-default' }) })
+    setData(d => ({ ...d, comptes: d.comptes.map(c => ({ ...c, isDefault: c.id === id })) }))
+  }, [])
+
+  const addHistorique = useCallback(async (compteId: string, entry: CompteHistorique) => {
+    await fetch(`/api/comptes/${compteId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry) })
-    setData(d => ({ ...d, compte: { ...d.compte, historique: [entry, ...d.compte.historique] } }))
+    setData(d => ({
+      ...d,
+      comptes: d.comptes.map(c => c.id === compteId
+        ? { ...c, historique: [entry, ...(c as Compte & { historique: CompteHistorique[] }).historique] }
+        : c),
+    }))
   }, [])
 
-  const deleteHistorique = useCallback(async (key: string) => {
-    await fetch('/api/compte', { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+  const deleteHistorique = useCallback(async (compteId: string, key: string) => {
+    await fetch(`/api/comptes/${compteId}/historique`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key }) })
-    setData(d => ({ ...d, compte: { ...d.compte, historique: d.compte.historique.filter(h => h.key !== key) } }))
+    setData(d => ({
+      ...d,
+      comptes: d.comptes.map(c => c.id === compteId
+        ? { ...c, historique: (c as Compte & { historique: CompteHistorique[] }).historique.filter(h => h.key !== key) }
+        : c),
+    }))
   }, [])
 
   const savePortfolio = useCallback(async (p: Portfolio) => {
@@ -111,12 +161,19 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setData(d => ({ ...d, portfolio: p }))
   }, [])
 
+  const defaultCompte = data.comptes.find(c => c.isDefault) ?? data.comptes[0] ?? null
+  const totalSolde = data.comptes.reduce((s, c) => s + (c.solde ?? 0), 0)
+
   return (
     <AppCtx.Provider value={{
-      ...data, reload,
+      ...data,
+      defaultCompte,
+      totalSolde,
+      reload,
       saveBudget, saveMonthPlan,
       saveTx, deleteTx,
-      updateSolde, addHistorique, deleteHistorique,
+      createCompte, updateCompte, deleteCompte, setDefaultCompte,
+      addHistorique, deleteHistorique,
       savePortfolio,
     }}>
       {children}

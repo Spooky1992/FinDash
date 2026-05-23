@@ -1,6 +1,6 @@
 import {
   pgTable, serial, text, numeric, date, timestamp,
-  jsonb, varchar, integer,
+  jsonb, varchar, integer, boolean,
 } from 'drizzle-orm/pg-core'
 
 // ── Utilisateur (single-user, mais propre) ─────────────────────
@@ -11,42 +11,49 @@ export const users = pgTable('users', {
   createdAt:    timestamp('created_at').defaultNow().notNull(),
 })
 
+// ── Comptes bancaires (multi-comptes par user) ─────────────────
+export const comptes = pgTable('comptes', {
+  id:          varchar('id', { length: 64 }).primaryKey(),
+  userId:      integer('user_id').notNull().references(() => users.id),
+  nom:         text('nom').notNull(),
+  type:        varchar('type', { length: 20 }).notNull().default('courant'), // courant|autre
+  solde:       numeric('solde', { precision: 12, scale: 2 }).notNull().default('0'),
+  isDefault:   boolean('is_default').notNull().default(false),
+  derniereMaj: varchar('derniere_maj', { length: 7 }),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
 // ── Transactions ───────────────────────────────────────────────
 export const transactions = pgTable('transactions', {
-  id:        varchar('id', { length: 64 }).primaryKey(),   // format tx-{timestamp}
+  id:        varchar('id', { length: 64 }).primaryKey(),
   userId:    integer('user_id').notNull().references(() => users.id),
+  compteId:  varchar('compte_id', { length: 64 }).references(() => comptes.id),  // null = compte par défaut
   date:      date('date').notNull(),
   label:     text('label').notNull(),
   category:  text('category'),
   amount:    numeric('amount', { precision: 12, scale: 2 }).notNull(),
-  type:      varchar('type', { length: 20 }).notNull(),    // income|expense|saving|invest
+  type:      varchar('type', { length: 20 }).notNull(),    // income|expense|saving|invest|transfer
+  toCompteId:varchar('to_compte_id', { length: 64 }).references(() => comptes.id), // pour virements
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-// ── Solde & historique compte ──────────────────────────────────
-export const compte = pgTable('compte', {
-  id:          serial('id').primaryKey(),
-  userId:      integer('user_id').notNull().unique().references(() => users.id),
-  solde:       numeric('solde', { precision: 12, scale: 2 }).notNull().default('0'),
-  derniereMaj: varchar('derniere_maj', { length: 7 }),     // YYYY-MM
-  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
-})
-
+// ── Historique mensuel par compte ──────────────────────────────
 export const compteHistorique = pgTable('compte_historique', {
-  id:       serial('id').primaryKey(),
-  userId:   integer('user_id').notNull().references(() => users.id),
-  key:      varchar('key', { length: 64 }).notNull(),
-  label:    text('label').notNull(),
-  avant:    numeric('avant', { precision: 12, scale: 2 }).notNull(),
-  apres:    numeric('apres', { precision: 12, scale: 2 }).notNull(),
-  revenus:  numeric('revenus', { precision: 12, scale: 2 }).notNull().default('0'),
-  depenses: numeric('depenses', { precision: 12, scale: 2 }).notNull().default('0'),
-  epargne:  numeric('epargne', { precision: 12, scale: 2 }).notNull().default('0'),
-  delta:    numeric('delta', { precision: 12, scale: 2 }).notNull(),
-  createdAt:timestamp('created_at').defaultNow().notNull(),
+  id:        serial('id').primaryKey(),
+  userId:    integer('user_id').notNull().references(() => users.id),
+  compteId:  varchar('compte_id', { length: 64 }).references(() => comptes.id),
+  key:       varchar('key', { length: 64 }).notNull(),
+  label:     text('label').notNull(),
+  avant:     numeric('avant', { precision: 12, scale: 2 }).notNull(),
+  apres:     numeric('apres', { precision: 12, scale: 2 }).notNull(),
+  revenus:   numeric('revenus', { precision: 12, scale: 2 }).notNull().default('0'),
+  depenses:  numeric('depenses', { precision: 12, scale: 2 }).notNull().default('0'),
+  epargne:   numeric('epargne', { precision: 12, scale: 2 }).notNull().default('0'),
+  delta:     numeric('delta', { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-// ── Budget (structure JSONB — flexible, évite 10 tables) ───────
+// ── Budget ─────────────────────────────────────────────────────
 export const budget = pgTable('budget', {
   id:        serial('id').primaryKey(),
   userId:    integer('user_id').notNull().unique().references(() => users.id),
